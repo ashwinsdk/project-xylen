@@ -1,0 +1,127 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background-color: var(--dark-gray);
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid var(--electric-blue);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-header h1 {
+  color: var(--electric-blue);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.connected {
+  background-color: var(--success-green);
+}
+
+.status-dot.disconnected {
+  background-color: var(--error-red);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dashboard-section {
+  margin-bottom: 2rem;
+}
+
+.dashboard-section h2 {
+  color: var(--electric-blue);
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--dark-blue);
+  padding-bottom: 0.5rem;
+}
+
+.performance-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background-color: var(--dark-gray);
+  border: 1px solid var(--dark-blue);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.stat-label {
+  color: var(--light-gray);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  color: var(--electric-blue);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-value.positive {
+  color: var(--success-green);
+}
+
+.stat-value.negative {
+  color: var(--error-red);
+}
+
+.app-footer {
+  background-color: var(--dark-gray);
+  padding: 1rem 2rem;
+  border-top: 2px solid var(--electric-blue);
+  text-align: center;
+  color: var(--light-gray);
+  font-size: 0.875rem;
+}
+
+.error-banner {
+  background-color: rgba(255, 51, 102, 0.2);
+  border: 1px solid var(--error-red);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  color: var(--error-red);
+  text-align: center;
+  font-weight: 500;
+}

@@ -1,0 +1,107 @@
+# TradeProject Configuration File
+# Copy this to config.yaml and customize for your setup
+
+# System Mode
+dry_run: true  # Set to false to enable actual trading (use testnet first!)
+testnet: true  # Use Binance testnet (always start with this enabled)
+
+# Model Endpoints
+# List all VM model servers. System handles partial availability automatically.
+model_endpoints:
+  - host: "192.168.1.100"
+    port: 8000
+    name: "model_vm_1"
+    weight: 1.0
+    enabled: true
+  - host: "192.168.1.101"
+    port: 8000
+    name: "model_vm_2"
+    weight: 1.0
+    enabled: true
+  - host: "192.168.1.102"
+    port: 8000
+    name: "model_vm_3"
+    weight: 0.8
+    enabled: false
+  - host: "192.168.1.103"
+    port: 8000
+    name: "model_vm_4"
+    weight: 0.8
+    enabled: false
+
+# Trading Parameters
+trading:
+  symbol: "BTCUSDT"
+  leverage: 1
+  position_size_fraction: 0.1  # Use 10% of equity per trade
+  max_open_positions: 1  # Maximum concurrent positions
+  stop_loss_percent: 0.02  # 2% stop loss
+  take_profit_percent: 0.05  # 5% take profit
+  
+# Ensemble Configuration
+ensemble:
+  method: "weighted_vote"  # Options: weighted_vote, average_confidence, majority
+  threshold: 0.7  # Minimum confidence to place trade (0-1)
+  weight_decay: 0.95  # Decay factor for recent performance weighting
+  min_responding_models: 1  # Minimum models needed to make decision
+
+# Data Collection
+data:
+  timeframes:
+    - "5m"  # 5-minute candles
+    - "1h"  # 1-hour candles
+  candles_count: 100  # Number of historical candles to send
+  indicators:
+    - "rsi"
+    - "volume"
+    - "ema_20"
+    - "ema_50"
+    - "macd"
+    - "bollinger_bands"
+
+# Timing
+timing:
+  heartbeat_interval: 60  # Seconds between snapshots (1-3 minutes recommended)
+  model_timeout: 5  # Seconds to wait for model response
+  order_check_interval: 10  # Seconds between order status checks
+  health_check_interval: 300  # Seconds between VM health checks
+
+# Binance API (keys loaded from environment variables)
+binance:
+  testnet_base_url: "https://testnet.binancefuture.com"
+  api_key_env: "BINANCE_TESTNET_API_KEY"
+  api_secret_env: "BINANCE_TESTNET_API_SECRET"
+  rate_limit_per_minute: 1200
+  rate_limit_orders_per_10s: 50
+
+# Logging and Persistence
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "./logs/coordinator.log"
+  max_bytes: 10485760  # 10 MB
+  backup_count: 5
+  
+database:
+  sqlite_path: "./data/trades.db"
+  csv_path: "./data/trades.csv"
+  backup_interval_hours: 24
+
+# Retraining
+retraining:
+  enabled: true
+  send_feedback_to_models: true  # Send trade outcomes to model /retrain endpoint
+  min_trades_before_retrain: 50  # Minimum trades before triggering retrain
+  retrain_schedule: "0 2 * * *"  # Cron schedule (2 AM daily)
+
+# Dashboard API Server (for React dashboard to fetch real data)
+dashboard:
+  enabled: true
+  port: 5000  # API server port (dashboard runs on 3000)
+  host: "0.0.0.0"
+
+# Safety Limits
+safety:
+  max_daily_trades: 20
+  max_daily_loss_percent: 0.1  # Stop trading if daily loss exceeds 10%
+  circuit_breaker_consecutive_losses: 5  # Pause after N consecutive losses
+  emergency_shutdown_loss_percent: 0.2  # Emergency stop at 20% loss

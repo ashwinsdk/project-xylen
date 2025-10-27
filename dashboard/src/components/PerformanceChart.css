@@ -1,0 +1,13 @@
+.performance-chart-container {
+  background-color: var(--dark-gray);
+  border: 1px solid var(--dark-blue);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.no-data {
+  padding: 3rem;
+  text-align: center;
+  color: var(--light-gray);
+  font-style: italic;
+}

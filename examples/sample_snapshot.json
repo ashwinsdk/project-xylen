@@ -1,0 +1,63 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "5m",
+  "candles": [
+    {
+      "timestamp": 1704067200000,
+      "open": 50000.0,
+      "high": 50100.0,
+      "low": 49900.0,
+      "close": 50050.0,
+      "volume": 123.45
+    },
+    {
+      "timestamp": 1704067500000,
+      "open": 50050.0,
+      "high": 50200.0,
+      "low": 50000.0,
+      "close": 50150.0,
+      "volume": 145.67
+    },
+    {
+      "timestamp": 1704067800000,
+      "open": 50150.0,
+      "high": 50250.0,
+      "low": 50100.0,
+      "close": 50200.0,
+      "volume": 156.89
+    },
+    {
+      "timestamp": 1704068100000,
+      "open": 50200.0,
+      "high": 50300.0,
+      "low": 50150.0,
+      "close": 50250.0,
+      "volume": 134.56
+    },
+    {
+      "timestamp": 1704068400000,
+      "open": 50250.0,
+      "high": 50350.0,
+      "low": 50200.0,
+      "close": 50300.0,
+      "volume": 167.89
+    }
+  ],
+  "indicators": {
+    "rsi": 55.2,
+    "volume": 167.89,
+    "volume_avg_20": 150.5,
+    "ema_20": 50150.0,
+    "ema_50": 49980.0,
+    "macd": 45.5,
+    "macd_signal": 40.2,
+    "macd_histogram": 5.3,
+    "bb_upper": 51000.0,
+    "bb_middle": 50200.0,
+    "bb_lower": 49400.0
+  },
+  "meta": {
+    "utc": "2024-01-01T12:00:00",
+    "candles_1h": []
+  }
+}

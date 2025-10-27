@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Config and secrets
+config.yaml
+*.env
+.env
+!*.env.example
+!models.env.example
+
+# API keys and credentials
+*api_key*
+*api_secret*
+*credentials*
+
+# Data and logs
+data/
+logs/
+*.db
+*.db-journal
+*.log
+*.csv
+backups/
+
+# Training data
+training_data/
+models/
+*.onnx
+*.pt
+*.pth
+*.model
+*.pkl
+
+# Node
+node_modules/
+dist/
+.cache/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+docker/models_vm*/
+docker/training_data_vm*/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+.pytest_cache/
+.coverage
+htmlcov/
+test_config.yaml
+
+#dashboard
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.cache/
+dashboard/package-lock.json

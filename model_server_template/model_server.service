@@ -1,0 +1,27 @@
+[Unit]
+Description=Trading Model Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/trading_model
+Environment="PATH=/opt/trading_model/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/trading_model/models.env
+ExecStart=/opt/trading_model/venv/bin/python /opt/trading_model/server.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=model_server
+
+# Resource limits for 12 GB RAM VM
+MemoryLimit=10G
+CPUQuota=200%
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
