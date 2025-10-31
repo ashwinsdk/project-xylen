@@ -1,7 +1,14 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .app {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  background: #000;
+  color: #fff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .app-header {
@@ -42,9 +49,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -124,4 +134,259 @@
   color: var(--error-red);
   text-align: center;
   font-weight: 500;
+}
+
+.header {
+  background: #1a1a1a;
+  padding: 1.5rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #00d4ff;
+}
+
+.header h1 {
+  color: #00d4ff;
+  font-size: 1.8rem;
+}
+
+.status-badge {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.status-active {
+  color: #00ff88;
+}
+
+.status-inactive {
+  color: #ff3366;
+}
+
+.badge {
+  background: #333;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #ffaa00;
+}
+
+.loading,
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 1rem;
+}
+
+.error {
+  color: #ff3366;
+}
+
+.dashboard-grid {
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+.card {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.card h2 {
+  color: #00d4ff;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+.models-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.model-card {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.model-card.healthy {
+  border-color: #00ff88;
+}
+
+.model-card.unhealthy {
+  border-color: #ff3366;
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.model-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot.green {
+  background: #00ff88;
+  box-shadow: 0 0 8px #00ff88;
+}
+
+.status-dot.red {
+  background: #ff3366;
+  box-shadow: 0 0 8px #ff3366;
+}
+
+.model-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.stat-box {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #00d4ff;
+}
+
+.stat-value.positive {
+  color: #00ff88;
+}
+
+.stat-value.negative {
+  color: #ff3366;
+}
+
+.trades-table-container {
+  overflow-x: auto;
+}
+
+.trades-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.trades-table th {
+  background: #2a2a2a;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #00d4ff;
+}
+
+.trades-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #333;
+}
+
+.side-long {
+  color: #00ff88;
+}
+
+.side-short {
+  color: #ff3366;
+}
+
+.pnl-positive {
+  color: #00ff88;
+  font-weight: 600;
+}
+
+.pnl-negative {
+  color: #ff3366;
+  font-weight: 600;
+}
+
+.status-badge.open {
+  background: #ffaa00;
+  color: #000;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge.filled {
+  background: #00ff88;
+  color: #000;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.no-data {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+}
+
+.daily-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background: #2a2a2a;
+  border-radius: 6px;
+}
+
+.stat-item .label {
+  color: #888;
+}
+
+.stat-item .value {
+  font-weight: 600;
+  color: #00d4ff;
+}
+
+.stat-item .value.positive {
+  color: #00ff88;
+}
+
+.stat-item .value.negative {
+  color: #ff3366;
 }

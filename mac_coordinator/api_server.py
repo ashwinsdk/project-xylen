@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class DashboardAPIServer:
-    def __init__(self, coordinator, port=5000, host='0.0.0.0'):
+    def __init__(self, coordinator, port=5500, host='0.0.0.0'):
         self.coordinator = coordinator
         self.port = port
         self.host = host

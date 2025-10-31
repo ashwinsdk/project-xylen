@@ -3,7 +3,7 @@
 # Test script to call model server /predict endpoint
 # Usage: ./curl_predict.sh [MODEL_SERVER_IP] [PORT]
 
-MODEL_IP=${1:-"192.168.1.100"}
+MODEL_IP=${1:-"100.108.252.74"}
 MODEL_PORT=${2:-"8000"}
 URL="http://${MODEL_IP}:${MODEL_PORT}/predict"
 

@@ -14,7 +14,7 @@ The TradeProject dashboard displays real-time data from the Mac coordinator via 
 ┌─────────────────┐         ┌──────────────────┐         ┌─────────────┐
 │  React          │  HTTP   │  Mac Coordinator │  HTTP   │  Model VMs  │
 │  Dashboard      │◄────────┤  + API Server    │◄────────┤  (1-5)      │
-│  (Port 3000)    │         │  (Port 5000)     │         │             │
+│  (Port 3000)    │         │  (Port 5500)     │         │             │
 └─────────────────┘         └──────────────────┘         └─────────────┘
                                      │
                                      ▼
@@ -33,7 +33,7 @@ Edit `config.yaml`:
 ```yaml
 dashboard:
   enabled: true
-  port: 5000
+  port: 5500
   host: "0.0.0.0"
 ```
 
@@ -48,7 +48,7 @@ python coordinator.py
 You should see:
 
 ```
-INFO - Dashboard API server started at http://0.0.0.0:5000
+INFO - Dashboard API server started at http://0.0.0.0:5500
 ```
 
 ### Step 3: Configure Dashboard
@@ -61,7 +61,7 @@ cp .env.example .env.local
 If coordinator is on a different machine, edit `.env.local`:
 
 ```
-REACT_APP_API_URL=http://192.168.1.100:5000/api
+REACT_APP_API_URL=http://192.168.1.100:5500/api
 ```
 
 ### Step 4: Start Dashboard
@@ -115,7 +115,7 @@ Returns recent trades from SQLite database.
     "timestamp": "2024-01-01T12:00:00",
     "symbol": "BTCUSDT",
     "side": "long",
-    "entry_price": 50000.0,
+    "entry_price": 55000.0,
     "exit_price": 50500.0,
     "quantity": 0.1,
     "pnl": 50.0,
@@ -136,7 +136,7 @@ Returns aggregate performance statistics.
   "winning_trades": 65,
   "losing_trades": 35,
   "win_rate": 0.65,
-  "total_pnl": 5000.0,
+  "total_pnl": 5500.0,
   "avg_pnl": 50.0,
   "max_win": 500.0,
   "max_loss": -200.0
@@ -188,29 +188,29 @@ Returns current coordinator status.
 
 ```bash
 # Health check
-curl http://localhost:5000/api/status
+curl http://localhost:5500/api/status
 
 # Get models
-curl http://localhost:5000/api/models
+curl http://localhost:5500/api/models
 
 # Get recent trades
-curl http://localhost:5000/api/trades?limit=10
+curl http://localhost:5500/api/trades?limit=10
 
 # Get performance
-curl http://localhost:5000/api/performance
+curl http://localhost:5500/api/performance
 
 # Get logs
-curl http://localhost:5000/api/logs?limit=50
+curl http://localhost:5500/api/logs?limit=50
 ```
 
 ### Test from Browser
 
 Open these URLs in your browser:
 
-- http://localhost:5000/api/status
-- http://localhost:5000/api/models
-- http://localhost:5000/api/trades
-- http://localhost:5000/api/performance
+- http://localhost:5500/api/status
+- http://localhost:5500/api/models
+- http://localhost:5500/api/trades
+- http://localhost:5500/api/performance
 
 ## Dashboard Features
 
@@ -270,7 +270,7 @@ Edit `config.yaml`:
 
 ```yaml
 dashboard:
-  port: 8080  # Change from 5000
+  port: 8080  # Change from 5500
 ```
 
 Then update `dashboard/.env.local`:
@@ -310,8 +310,8 @@ const custom = await customRes.json();
 **Solutions:**
 1. Verify coordinator is running: `ps aux | grep coordinator.py`
 2. Check API server started: `grep "API server started" logs/coordinator.log`
-3. Test API directly: `curl http://localhost:5000/api/status`
-4. Check firewall not blocking port 5000
+3. Test API directly: `curl http://localhost:5500/api/status`
+4. Check firewall not blocking port 5500
 
 ### CORS Errors in Browser Console
 
@@ -345,7 +345,7 @@ const custom = await customRes.json();
 **Cause:** Port already in use or permission issue
 
 **Solutions:**
-1. Check port 5000 is free: `lsof -i :5000`
+1. Check port 5500 is free: `lsof -i :5500`
 2. Change port in config.yaml if needed
 3. Check coordinator logs for startup errors
 
@@ -384,7 +384,7 @@ server {
     
     # Proxy API to coordinator
     location /api/ {
-        proxy_pass http://localhost:5000;
+        proxy_pass http://localhost:5500;
         proxy_set_header Host $host;
     }
 }

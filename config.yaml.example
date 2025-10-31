@@ -96,7 +96,7 @@ retraining:
 # Dashboard API Server (for React dashboard to fetch real data)
 dashboard:
   enabled: true
-  port: 5000  # API server port (dashboard runs on 3000)
+  port: 5500  # API server port (dashboard runs on 3000)
   host: "0.0.0.0"
 
 # Safety Limits

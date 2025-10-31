@@ -19,7 +19,7 @@ cp .env.example .env.local
 Edit `.env.local` if your coordinator is running on a different host:
 
 ```
-REACT_APP_API_URL=http://localhost:5000/api
+REACT_APP_API_URL=http://localhost:5500/api
 ```
 
 ### Development Mode
@@ -49,7 +49,7 @@ source venv/bin/activate
 python coordinator.py
 ```
 
-The coordinator will automatically start the API server on port 5000 (configurable in config.yaml).
+The coordinator will automatically start the API server on port 5500 (configurable in config.yaml).
 
 ## Features
 
@@ -80,7 +80,7 @@ Make sure the coordinator is running with API server enabled:
 ps aux | grep coordinator.py
 
 # Check API server is responding
-curl http://localhost:5000/api/status
+curl http://localhost:5500/api/status
 ```
 
 ### CORS Errors
@@ -127,7 +127,7 @@ dashboard/
 Edit `App.jsx`:
 
 ```javascript
-const [refreshInterval, setRefreshInterval] = useState(5000); // 5 seconds
+const [refreshInterval, setRefreshInterval] = useState(5500); // 5 seconds
 ```
 
 ## Color Theme

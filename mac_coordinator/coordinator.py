@@ -31,7 +31,7 @@ class TradingCoordinator:
         if dashboard_config.get('enabled', True):
             self.api_server = DashboardAPIServer(
                 coordinator=self,
-                port=dashboard_config.get('port', 5000),
+                port=dashboard_config.get('port', 5500),
                 host=dashboard_config.get('host', '0.0.0.0')
             )
         else:
@@ -76,6 +76,8 @@ class TradingCoordinator:
         self.logger.info(f"Dry Run Mode: {self.config.get('dry_run', True)}")
         self.logger.info(f"Testnet Mode: {self.config.get('testnet', True)}")
         
+        # CRITICAL FIX: Initialize market data collector first
+        await self.market_data.initialize()
         await self.data_logger.initialize()
         await self.binance_client.initialize()
         
@@ -122,7 +124,16 @@ class TradingCoordinator:
         try:
             snapshot = await self.market_data.get_snapshot()
             
-            self.logger.debug(f"Collected market snapshot: {len(snapshot.get('candles_5m', []))} candles")
+            self.logger.info(f"Market snapshot - Price: {snapshot.get('current_price')}, "
+                           f"5m candles: {len(snapshot.get('candles_5m', []))}, "
+                           f"1h candles: {len(snapshot.get('candles_1h', []))}")
+            
+            # Log key indicators
+            indicators = snapshot.get('indicators', {})
+            if indicators:
+                self.logger.info(f"Indicators - RSI: {indicators.get('rsi', 'N/A'):.2f}, "
+                               f"Volume: {indicators.get('volume', 0):.2f}, "
+                               f"EMA20: {indicators.get('ema_20', 'N/A')}")
             
             model_responses = await self.ensemble.get_model_predictions(snapshot)
             
@@ -332,6 +343,7 @@ class TradingCoordinator:
         if self.api_server:
             await self.api_server.stop()
         
+        await self.market_data.close()
         await self.data_logger.close()
         await self.binance_client.close()
 
