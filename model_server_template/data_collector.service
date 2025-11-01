@@ -1,0 +1,23 @@
+[Unit]
+Description=Binance Data Collector for Model Training
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/trading_model
+Environment="PATH=/opt/trading_model/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/trading_model/models.env
+ExecStart=/opt/trading_model/venv/bin/python /opt/trading_model/data_collector.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=data_collector
+
+# Resource limits
+MemoryLimit=1G
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

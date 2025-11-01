@@ -10,7 +10,7 @@ from datetime import datetime
 
 from model_loader import ModelLoader
 from retrain import RetrainManager
-
+from continuous_trainer import ContinuousTrainer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,15 +55,16 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     model_type: Optional[str] = None
 
+continuous_trainer = None
 
 @app.on_event("startup")
 async def startup_event():
-    global model_loader, retrain_manager
+    global model_loader, retrain_manager, continuous_trainer
     
     logger.info("Starting model server...")
     
-    model_path = os.getenv('MODEL_PATH', './models/model.onnx')
-    model_type = os.getenv('MODEL_TYPE', 'onnx')
+    model_path = os.getenv('MODEL_PATH', './models/model.txt')
+    model_type = os.getenv('MODEL_TYPE', 'lightgbm')
     
     model_loader = ModelLoader(model_path, model_type)
     
@@ -76,7 +77,10 @@ async def startup_event():
     
     retrain_manager = RetrainManager(model_loader)
     
-    logger.info("Model server ready")
+    # Initialize continuous trainer (runs in background)
+    continuous_trainer = ContinuousTrainer(model_loader)
+    
+    logger.info("Model server ready with continuous training support")
 
 
 @app.get("/health")

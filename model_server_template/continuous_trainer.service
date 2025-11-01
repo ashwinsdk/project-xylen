@@ -1,0 +1,24 @@
+[Unit]
+Description=Continuous Model Trainer
+After=network.target model_server.service
+Requires=model_server.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/trading_model
+Environment="PATH=/opt/trading_model/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/trading_model/models.env
+ExecStart=/opt/trading_model/venv/bin/python /opt/trading_model/continuous_trainer.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=continuous_trainer
+
+# Resource limits (can use more during training)
+MemoryLimit=6G
+CPUQuota=400%
+
+[Install]
+WantedBy=multi-user.target
