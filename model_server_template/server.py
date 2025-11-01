@@ -8,8 +8,8 @@ import psutil
 import time
 from datetime import datetime
 
-from model_loader import ModelLoader
-from retrain import RetrainManager
+from model_loader_optimized import OptimizedModelLoader as ModelLoader
+from retrain_optimized import OptimizedRetrainManager as RetrainManager
 from continuous_trainer import ContinuousTrainer
 
 logging.basicConfig(
