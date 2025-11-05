@@ -142,12 +142,17 @@ class DashboardAPIServer:
     
     async def get_status(self, request):
         try:
+            # Convert daily_stats datetime to ISO format
+            daily_stats = self.coordinator.daily_stats.copy()
+            if 'start_time' in daily_stats and isinstance(daily_stats['start_time'], datetime):
+                daily_stats['start_time'] = daily_stats['start_time'].isoformat()
+            
             status = {
                 'is_running': self.coordinator.is_running,
                 'dry_run': self.coordinator.config.get('dry_run', True),
                 'testnet': self.coordinator.config.get('testnet', True),
                 'current_position': self.coordinator.current_position is not None,
-                'daily_stats': self.coordinator.daily_stats,
+                'daily_stats': daily_stats,
                 'timestamp': datetime.utcnow().isoformat()
             }
             

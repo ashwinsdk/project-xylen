@@ -9,3 +9,4 @@ scikit-learn==1.4.2   # compatible with Python 3.12
 pandas==2.2.2         # 2.1.x had limited 3.12 wheels → upgraded
 python-dotenv==1.0.1  # small bump for bug fixes
 psutil==5.9.8         # minor bugfix release
+aiohttp==3.12.15
