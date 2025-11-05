@@ -1,95 +1,16 @@
-# TradeProject Quick Start Guide
+# Project Xylen Quick Start Guide
 
-This guide gets you running with TradeProject in under 30 minutes using placeholder models and dry-run mode on Binance testnet.
+This guide gets you running with Project Xylen in under 30 minutes using placeholder models and dry-run mode on Binance testnet.
 
 ## Prerequisites Checklist
 
-- [ ] MacBook with macOS and Python 3.10 installed
+- [ ] Machine with macOS/Linux and Python 3.10 installed
 - [ ] Node.js 18 or later installed
 - [ ] Binance testnet account created at testnet.binancefuture.com
 - [ ] API key and secret from Binance testnet
-- [ ] 1-4 VMs running Ubuntu 22.04 LTS (see VM_SETUP.md) OR use Docker
+- [ ] 1-4 VMs running Ubuntu 22.04 LTS (see VM_SETUP.md)
 
-## Option A: Quick Start with Docker (Easiest)
-
-If you have Docker installed on your Mac, this is the fastest way to get started.
-
-### Step 1: Build and Start Model Servers
-
-```bash
-cd docker
-docker-compose up -d model_server_1 model_server_2
-```
-
-Wait 30 seconds for servers to start, then verify:
-
-```bash
-curl http://localhost:8001/health
-curl http://localhost:8002/health
-```
-
-### Step 2: Configure Mac Coordinator
-
-```bash
-cd ..
-cp config.yaml.example config.yaml
-```
-
-Edit config.yaml and update model endpoints to use Docker containers:
-
-```yaml
-model_endpoints:
-  - host: "localhost"
-    port: 8001
-    name: "model_docker_1"
-    weight: 1.0
-    enabled: true
-  - host: "localhost"
-    port: 8002
-    name: "model_docker_2"
-    weight: 1.0
-    enabled: true
-```
-
-Keep dry_run: true and testnet: true.
-
-### Step 3: Setup Mac Coordinator
-
-```bash
-cd mac_coordinator
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Step 4: Set Binance API Keys
-
-```bash
-export BINANCE_TESTNET_API_KEY="your_testnet_key"
-export BINANCE_TESTNET_API_SECRET="your_testnet_secret"
-```
-
-### Step 5: Start Coordinator
-
-```bash
-python coordinator.py
-```
-
-You should see log output showing market data collection, model predictions, and ensemble decisions.
-
-### Step 6: View Dashboard
-
-Open a new terminal:
-
-```bash
-cd dashboard
-npm install
-npm run dev
-```
-
-Open http://localhost:3000 in your browser.
-
-## Option B: Quick Start with Single VM
+## Option A: Quick Start with Single VM
 
 If you have one VM running at 192.168.1.100.
 
@@ -101,11 +22,11 @@ SSH into your VM:
 ssh ubuntu@192.168.1.100
 ```
 
-Transfer model server code from your Mac:
+Transfer model server code:
 
 ```bash
-# From Mac terminal
-scp -r model_server_template/* ubuntu@192.168.1.100:/opt/trading_model/
+# From your machine
+scp -r model_server/* ubuntu@192.168.1.100:/opt/trading_model/
 ```
 
 On VM, install and start:
@@ -119,13 +40,13 @@ cp models.env.example models.env
 python server.py
 ```
 
-Test from Mac:
+Test from your machine:
 
 ```bash
 curl http://192.168.1.100:8000/health
 ```
 
-### Step 2: Configure and Run Mac Coordinator
+### Step 2: Configure and Run Coordinator
 
 ```bash
 cp config.yaml.example config.yaml
@@ -145,7 +66,7 @@ model_endpoints:
 Set API keys and run:
 
 ```bash
-cd mac_coordinator
+cd coordinator
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -184,15 +105,9 @@ Check the dashboard at http://localhost:3000 to see:
 
 ## Stopping the System
 
-Mac Coordinator: Press Ctrl+C
+Coordinator: Press Ctrl+C
 
 Dashboard: Press Ctrl+C
-
-Docker Containers:
-```bash
-cd docker
-docker-compose down
-```
 
 VM Model Server:
 ```bash
@@ -237,8 +152,6 @@ npm run dev
 
 ## Getting Help
 
-For detailed setup instructions see DOCUMENTATION.md
+For detailed setup instructions see the main README.md
 
 For VM setup see VM_SETUP.md
-
-For testing see ci/run_tests.sh

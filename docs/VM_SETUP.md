@@ -1,6 +1,6 @@
 # VM Setup Guide for Windows Hosts
 
-This guide provides exact commands to create Ubuntu LTS VMs on Windows hosts using VirtualBox for running trading model servers.
+This guide provides exact commands to create Ubuntu LTS VMs on Windows hosts using VirtualBox for running model servers for Project Xylen.
 
 ## Prerequisites
 

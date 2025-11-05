@@ -1,13 +1,13 @@
-# TradeProject - Automated Paper Trading System
+# Project Xylen - Automated Trading System
 
-Complete automated trading coordinator for BTCUSDT perpetual futures using distributed AI models running on Ubuntu VMs coordinated by a MacBook Air M2 controller.
+Complete automated trading system for BTCUSDT perpetual futures using distributed AI models running on Ubuntu VMs coordinated by a central controller.
 
 ## Architecture Overview
 
 This system consists of:
 
-- Mac Coordinator: Python async program that orchestrates trading decisions
-- Model VMs: Up to 4 Ubuntu LTS VMs running FastAPI model servers with AI models
+- Coordinator: Python async program that orchestrates trading decisions
+- Model Servers: Up to 4 Ubuntu LTS VMs running FastAPI model servers with AI models
 - React Dashboard: Real-time monitoring interface
 - Binance Testnet Integration: Safe paper trading environment
 
@@ -23,14 +23,14 @@ This system consists of:
 
 ## Quick Start
 
-For detailed setup instructions see DOCUMENTATION.md.
+For detailed setup instructions see docs/QUICKSTART.md.
 
-For VirtualBox VM creation on Windows hosts see VM_SETUP.md.
+For VirtualBox VM creation on Windows hosts see docs/VM_SETUP.md.
 
-### Mac Controller Setup
+### Controller Setup
 
 ```bash
-cd mac_coordinator
+cd coordinator
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -44,7 +44,7 @@ python coordinator.py
 ### Model Server Setup (on each Ubuntu VM)
 
 ```bash
-cd model_server_template
+cd model_server
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -65,44 +65,38 @@ npm run preview
 ## Repository Structure
 
 ```
-TradeProject/
+project-xylen/
 ├── README.md
-├── DOCUMENTATION.md
-├── VM_SETUP.md
 ├── config.yaml.example
-├── mac_coordinator/
+├── coordinator/
 │   ├── coordinator.py
 │   ├── ensemble.py
 │   ├── binance_client.py
 │   ├── data_logger.py
+│   ├── market_data.py
+│   ├── api_server.py
 │   ├── requirements.txt
 │   └── tests/
-├── model_server_template/
+├── model_server/
 │   ├── server.py
-│   ├── model_loader.py
-│   ├── retrain.py
-│   ├── convert_to_onnx.py
+│   ├── model_loader_optimized.py
+│   ├── retrain_optimized.py
+│   ├── continuous_trainer.py
+│   ├── data_collector.py
 │   ├── requirements.txt
 │   ├── models.env.example
-│   └── model_server.service
+│   └── linux_services/
 ├── dashboard/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   └── components/
 │   ├── package.json
-│   ├── vite.config.js
-│   ├── index.html
-│   └── src/
-├── scripts/
-│   ├── vbox_create_vm.ps1
-│   ├── backup_sqlite.sh
-│   └── setup_vm_ssh.sh
-├── ci/
-│   ├── test_integration.py
-│   └── run_tests.sh
-├── examples/
-│   ├── sample_snapshot.json
-│   ├── curl_predict.sh
-│   └── curl_retrain.sh
-└── docker/
-    └── Dockerfile.model_server
+│   └── vite.config.js
+├── docs/
+│   ├── QUICKSTART.md
+│   └── VM_SETUP.md
+└── scripts/
+    └── backup_sqlite.sh
 ```
 
 ## Safety and Testing
@@ -135,17 +129,17 @@ The system supports any model that can be loaded in Python. To integrate your mo
 3. Edit models.env to set MODEL_PATH=/opt/trading_model/model.onnx
 4. Restart model server: sudo systemctl restart model_server
 
-See DOCUMENTATION.md section "Model Integration Guide" for detailed instructions.
+See docs/QUICKSTART.md section "Model Integration Guide" for detailed instructions.
 
 ## Support and Troubleshooting
 
 Check logs:
 
-- Mac coordinator: ./logs/coordinator.log
+- Coordinator: ./logs/coordinator.log
 - Model servers: journalctl -u model_server -f
 - Dashboard: Browser console
 
-Common issues and solutions are documented in DOCUMENTATION.md.
+Common issues and solutions are documented in docs/QUICKSTART.md.
 
 ## License
 

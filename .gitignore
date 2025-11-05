@@ -80,3 +80,16 @@ dashboard/node_modules/
 dashboard/dist/
 dashboard/.cache/
 dashboard/package-lock.json
+
+# Coordinator
+coordinator/venv/
+coordinator/__pycache__/
+coordinator/data/
+coordinator/logs/
+
+# Model Server
+model_server/venv/
+model_server/__pycache__/
+model_server/training_data/
+model_server/models/*.txt
+model_server/models/*.onnx
