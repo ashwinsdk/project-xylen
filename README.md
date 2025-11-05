@@ -1,146 +1,167 @@
 # Project Xylen - Automated Trading System
 
-Complete automated trading system for BTCUSDT perpetual futures using distributed AI models running on Ubuntu VMs coordinated by a central controller.
+Distributed AI trading system for BTCUSDT perpetual futures using multiple model servers coordinated by a central controller.
 
-## Architecture Overview
+## Architecture
 
-This system consists of:
+- Coordinator: Central orchestration hub for trading decisions
+- Model Servers: FastAPI servers running AI models on distributed machines
+- Dashboard: Real-time monitoring interface built with React
+- Binance Integration: Paper trading on testnet
 
-- Coordinator: Python async program that orchestrates trading decisions
-- Model Servers: Up to 4 Ubuntu LTS VMs running FastAPI model servers with AI models
-- React Dashboard: Real-time monitoring interface
-- Binance Testnet Integration: Safe paper trading environment
+## Features
 
-## Key Features
-
-- Distributed AI model inference across multiple VMs
-- Weighted ensemble aggregation with confidence thresholds
-- Automated position management with stop-loss and take-profit
+- Distributed AI model inference
+- Weighted ensemble aggregation
+- Automated position management
 - Complete audit trail in SQLite and CSV
-- Model retraining pipeline with trade outcome feedback
-- VM health monitoring and partial availability support
-- Dry-run and paper trading modes
+- Continuous model retraining
+- Health monitoring and failover support
 
-## Quick Start
+## Quick Setup
 
-For detailed setup instructions see docs/QUICKSTART.md.
-
-For VirtualBox VM creation on Windows hosts see docs/VM_SETUP.md.
-
-### Controller Setup
+### Step 1: Coordinator Setup
 
 ```bash
 cd coordinator
-python3 -m venv venv
+python3.10 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp ../config.yaml.example ../config.yaml
-# Edit config.yaml with your settings
-export BINANCE_TESTNET_API_KEY="your_key"
-export BINANCE_TESTNET_API_SECRET="your_secret"
+nano ../config.yaml
+```
+
+Edit config.yaml with your Binance testnet credentials and model server endpoints.
+
+```bash
+export BINANCE_TESTNET_API_KEY="your_testnet_api_key"
+export BINANCE_TESTNET_API_SECRET="your_testnet_api_secret"
 python coordinator.py
 ```
 
-### Model Server Setup (on each Ubuntu VM)
+### Step 2: Model Server Setup
+
+See docs/MODEL_SERVER_SETUP.md for complete installation instructions:
+- Linux (Ubuntu 22.04 LTS) with systemd services
+- macOS with LaunchDaemon services
+- Docker deployment for cross-platform
+
+Quick start for Linux:
 
 ```bash
-cd model_server
-python3 -m venv venv
+sudo apt update
+sudo apt install -y python3.10 python3.10-venv python3-pip build-essential
+sudo mkdir -p /opt/trading_model
+cd /opt/trading_model
+cp /path/to/project-xylen/model_server/*.py .
+cp /path/to/project-xylen/model_server/requirements.txt .
+python3.10 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp models.env.example models.env
-# Edit models.env with model file path
-python server.py
+nano models.env
 ```
 
-### Dashboard Setup
+Copy your model file and start services:
+
+```bash
+cp /path/to/model.txt /opt/trading_model/models/trading_model.txt
+sudo cp /path/to/project-xylen/model_server/linux_services/*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable model_server data_collector continuous_trainer
+sudo systemctl start model_server data_collector continuous_trainer
+```
+
+### Step 3: Dashboard Setup
 
 ```bash
 cd dashboard
 npm install
+npm run dev
+```
+
+For production:
+
+```bash
 npm run build
 npm run preview
 ```
 
-## Repository Structure
+## Directory Structure
 
 ```
 project-xylen/
-├── README.md
-├── config.yaml.example
-├── coordinator/
-│   ├── coordinator.py
-│   ├── ensemble.py
-│   ├── binance_client.py
-│   ├── data_logger.py
-│   ├── market_data.py
-│   ├── api_server.py
-│   ├── requirements.txt
-│   └── tests/
-├── model_server/
-│   ├── server.py
-│   ├── model_loader_optimized.py
-│   ├── retrain_optimized.py
-│   ├── continuous_trainer.py
-│   ├── data_collector.py
-│   ├── requirements.txt
-│   ├── models.env.example
-│   └── linux_services/
-├── dashboard/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   └── components/
-│   ├── package.json
-│   └── vite.config.js
-├── docs/
-│   ├── QUICKSTART.md
-│   └── VM_SETUP.md
-└── scripts/
-    └── backup_sqlite.sh
+├── coordinator/          # Central trading orchestrator
+├── model_server/         # Distributed AI model servers
+├── dashboard/            # React monitoring interface
+├── docs/                 # Documentation
+└── scripts/              # Utility scripts
 ```
-
-## Safety and Testing
-
-This project starts in paper trading mode on Binance testnet. Never use real funds until:
-
-1. All integration tests pass
-2. System runs successfully for at least 7 days on testnet
-3. You understand every configuration parameter
-4. You have tested emergency shutdown procedures
-
-See DOCUMENTATION.md section "Pre-Production Checklist" for complete safety requirements.
 
 ## Configuration
 
-All configuration is in config.yaml. Key parameters:
+Edit config.yaml before starting the coordinator:
 
-- dry_run: Set to true to simulate trades without API calls
-- model_endpoints: List of VM host:port addresses
-- ensemble_threshold: Minimum confidence to place trade (default 0.7)
-- position_size_fraction: Fraction of equity per trade (default 0.1)
-- heartbeat_interval: Seconds between snapshots (default 60)
+```bash
+nano config.yaml
+```
+
+Key parameters:
+- dry_run: true for simulation, false for testnet trading
+- model_endpoints: List of model server URLs
+- ensemble_threshold: Minimum confidence (0.0-1.0)
+- position_size_fraction: Trade size as fraction of equity
+- stop_loss_pct: Stop loss percentage
+- take_profit_pct: Take profit percentage
 
 ## Model Integration
 
-The system supports any model that can be loaded in Python. To integrate your model:
+Supported formats: LightGBM, ONNX, PyTorch
 
-1. Export model to PyTorch checkpoint, ONNX, or LightGBM format
-2. Copy model file to VM at /opt/trading_model/model.onnx
-3. Edit models.env to set MODEL_PATH=/opt/trading_model/model.onnx
-4. Restart model server: sudo systemctl restart model_server
+```bash
+cp your_model.txt /opt/trading_model/models/trading_model.txt
+nano /opt/trading_model/models.env
+```
 
-See docs/QUICKSTART.md section "Model Integration Guide" for detailed instructions.
+Set MODEL_TYPE and MODEL_PATH in models.env, then restart:
 
-## Support and Troubleshooting
+```bash
+sudo systemctl restart model_server
+```
 
-Check logs:
+## Logs and Monitoring
 
-- Coordinator: ./logs/coordinator.log
-- Model servers: journalctl -u model_server -f
-- Dashboard: Browser console
+Coordinator logs:
+```bash
+tail -f coordinator/logs/coordinator.log
+```
 
-Common issues and solutions are documented in docs/QUICKSTART.md.
+Model server logs (Linux):
+```bash
+sudo journalctl -u model_server -f
+```
+
+Model server logs (macOS):
+```bash
+tail -f /usr/local/opt/trading_model/logs/model_server.log
+```
+
+Dashboard: http://localhost:5173
+
+## Testing
+
+Always test on Binance testnet before production:
+
+1. Run coordinator with dry_run: true
+2. Verify all model servers respond
+3. Monitor logs for 24+ hours
+4. Test emergency shutdown
+
+## Documentation
+
+- docs/MODEL_SERVER_SETUP.md - Complete model server setup guide
+- docs/QUICKSTART.md - Quick start guide
 
 ## License
 
-This project is provided as-is for educational and research purposes. Use at your own risk. Never trade with funds you cannot afford to lose.
+Proprietary software. All rights reserved. See LICENSE file for terms.

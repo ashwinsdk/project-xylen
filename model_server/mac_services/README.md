@@ -13,7 +13,7 @@ This directory contains macOS LaunchDaemon configurations for running the model 
 
 ```bash
 cd model_server/mac_services
-sudo ./install.sh
+c
 ```
 
 The installation script will:
