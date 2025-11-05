@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  model_server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projectxylen_model_server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=/app/models/trading_model.txt
+      - MODEL_TYPE=lightgbm
+      - PORT=8000
+      - HOST=0.0.0.0
+      - TRAINING_DATA_PATH=/app/training_data/live_samples.jsonl
+      - COLLECTION_INTERVAL=60
+      - LOOKBACK_PERIODS=100
+      - TRAINING_INTERVAL=1800
+      - MIN_SAMPLES_FOR_RETRAIN=100
+      - TRAINING_BATCH_SIZE=1000
+      - LGBM_MAX_MEMORY_GB=${LGBM_MAX_MEMORY_GB:-7.2}
+      - LGBM_NUM_THREADS=${LGBM_NUM_THREADS:-6}
+      - LGBM_MAX_BIN=${LGBM_MAX_BIN:-511}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/app/models
+      - ./training_data:/app/training_data
+      - ./logs:/app/logs
+    mem_limit: ${MEM_LIMIT:-8g}
+    cpus: ${CPU_LIMIT:-4.0}
+    networks:
+      - projectxylen_network
+
+  data_collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projectxylen_data_collector
+    restart: unless-stopped
+    command: python data_collector.py
+    environment:
+      - TRAINING_DATA_PATH=/app/training_data/live_samples.jsonl
+      - COLLECTION_INTERVAL=60
+      - LOOKBACK_PERIODS=100
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./training_data:/app/training_data
+      - ./logs:/app/logs
+    mem_limit: ${MEM_LIMIT_COLLECTOR:-2g}
+    cpus: ${CPU_LIMIT_COLLECTOR:-1.0}
+    networks:
+      - projectxylen_network
+    depends_on:
+      - model_server
+
+  continuous_trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projectxylen_continuous_trainer
+    restart: unless-stopped
+    command: python continuous_trainer.py
+    environment:
+      - MODEL_PATH=/app/models/trading_model.txt
+      - MODEL_TYPE=lightgbm
+      - TRAINING_DATA_PATH=/app/training_data/live_samples.jsonl
+      - TRAINING_INTERVAL=1800
+      - MIN_SAMPLES_FOR_RETRAIN=100
+      - TRAINING_BATCH_SIZE=1000
+      - LGBM_MAX_MEMORY_GB=${LGBM_MAX_MEMORY_GB:-7.2}
+      - LGBM_NUM_THREADS=${LGBM_NUM_THREADS:-6}
+      - LGBM_MAX_BIN=${LGBM_MAX_BIN:-511}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/app/models
+      - ./training_data:/app/training_data
+      - ./logs:/app/logs
+    mem_limit: ${MEM_LIMIT_TRAINER:-6g}
+    cpus: ${CPU_LIMIT_TRAINER:-4.0}
+    networks:
+      - projectxylen_network
+    depends_on:
+      - model_server
+
+networks:
+  projectxylen_network:
+    driver: bridge
