@@ -6,7 +6,7 @@
 lightgbm==4.1.0
 scikit-learn==1.3.2
 numpy==1.24.4
-pandas==2.0.3
+pandas==2.1.0
 scipy==1.11.4
 
 # ONNX inference

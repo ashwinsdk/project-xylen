@@ -1,9 +1,12 @@
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 import aiohttp
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
+import pandas as pd
+import os
+from pathlib import Path
 
 
 class MarketDataCollector:
@@ -157,66 +160,177 @@ class MarketDataCollector:
             raise
     
     def _calculate_indicators(self, candles: List[Dict]) -> Dict:
-        """Calculate technical indicators from candle data"""
+        """
+        Calculate all 29+ technical indicators from config.yaml
+        
+        Features computed:
+        - Price momentum & trend (RSI, EMAs, MACD)
+        - Volatility (ATR, Bollinger Bands)
+        - Volume analysis (OBV, volume ratios)
+        - Candle patterns (body ratio, shadows)
+        - Strength indicators (ADX)
+        """
         if not candles:
             return {}
         
         closes = np.array([c['close'] for c in candles])
         highs = np.array([c['high'] for c in candles])
         lows = np.array([c['low'] for c in candles])
+        opens = np.array([c['open'] for c in candles])
         volumes = np.array([c['volume'] for c in candles])
         
         indicators = {}
         
-        # RSI
+        # === RSI (Multiple periods) ===
         indicators['rsi'] = self._calculate_rsi(closes, period=14)
+        indicators['rsi_14'] = indicators['rsi']
+        indicators['rsi_28'] = self._calculate_rsi(closes, period=28)
         
-        # Volume metrics
+        # === Volume Metrics ===
         indicators['volume'] = float(volumes[-1])
-        indicators['volume_avg_20'] = float(np.mean(volumes[-20:]) if len(volumes) >= 20 else np.mean(volumes))
-        indicators['volume_ratio'] = float(volumes[-1] / indicators['volume_avg_20']) if indicators['volume_avg_20'] > 0 else 1.0
+        indicators['volume_sma_20'] = float(np.mean(volumes[-20:]) if len(volumes) >= 20 else np.mean(volumes))
+        indicators['volume_ratio'] = float(volumes[-1] / indicators['volume_sma_20']) if indicators['volume_sma_20'] > 0 else 1.0
         
-        # EMAs
-        if len(closes) >= 20:
+        # === EMAs (Multiple periods) ===
+        if len(closes) >= 9:
             indicators['ema_9'] = self._calculate_ema(closes, 9)
+        if len(closes) >= 20:
             indicators['ema_20'] = self._calculate_ema(closes, 20)
-        
         if len(closes) >= 50:
             indicators['ema_50'] = self._calculate_ema(closes, 50)
-        
         if len(closes) >= 200:
             indicators['ema_200'] = self._calculate_ema(closes, 200)
         
-        # MACD
+        # === MACD ===
         if len(closes) >= 26:
             macd_data = self._calculate_macd(closes)
-            indicators.update(macd_data)
+            indicators['macd'] = macd_data['macd']
+            indicators['macd_signal'] = macd_data['macd_signal']
+            indicators['macd_hist'] = macd_data['macd_histogram']
         
-        # Bollinger Bands
+        # === Bollinger Bands ===
         if len(closes) >= 20:
             bb_data = self._calculate_bollinger_bands(closes, period=20)
-            indicators.update(bb_data)
+            indicators['bb_upper'] = bb_data['bb_upper']
+            indicators['bb_middle'] = bb_data['bb_middle']
+            indicators['bb_lower'] = bb_data['bb_lower']
+            
+            # BB width (volatility indicator)
+            bb_range = bb_data['bb_upper'] - bb_data['bb_lower']
+            indicators['bb_width'] = float(bb_range / bb_data['bb_middle'] * 100) if bb_data['bb_middle'] > 0 else 0
             
             # BB position (where price is relative to bands)
             current_price = closes[-1]
-            bb_range = bb_data['bb_upper'] - bb_data['bb_lower']
             if bb_range > 0:
                 indicators['bb_position'] = (current_price - bb_data['bb_lower']) / bb_range
         
-        # ATR (Average True Range)
+        # === ATR (Average True Range) ===
         if len(closes) >= 14:
-            indicators['atr'] = self._calculate_atr(highs, lows, closes, period=14)
+            atr_value = self._calculate_atr(highs, lows, closes, period=14)
+            indicators['atr'] = atr_value
+            indicators['atr_percent'] = float(atr_value / closes[-1] * 100) if closes[-1] > 0 else 0
         
-        # Momentum
+        # === OBV (On-Balance Volume) ===
+        if len(closes) >= 2:
+            indicators['obv'] = self._calculate_obv(closes, volumes)
+        
+        # === ADX (Average Directional Index) ===
+        if len(closes) >= 14:
+            indicators['adx'] = self._calculate_adx(highs, lows, closes, period=14)
+        
+        # === Candle Pattern Features ===
+        if len(candles) >= 1:
+            last_candle = candles[-1]
+            body = abs(last_candle['close'] - last_candle['open'])
+            high_low_range = last_candle['high'] - last_candle['low']
+            
+            # Body ratio (body size vs full range)
+            indicators['candle_body_ratio'] = float(body / high_low_range) if high_low_range > 0 else 0
+            
+            # Upper shadow (wick above body)
+            upper_shadow = last_candle['high'] - max(last_candle['open'], last_candle['close'])
+            indicators['candle_upper_shadow'] = float(upper_shadow / high_low_range) if high_low_range > 0 else 0
+            
+            # Lower shadow (wick below body)
+            lower_shadow = min(last_candle['open'], last_candle['close']) - last_candle['low']
+            indicators['candle_lower_shadow'] = float(lower_shadow / high_low_range) if high_low_range > 0 else 0
+        
+        # === Momentum Indicators ===
         if len(closes) >= 10:
-            indicators['momentum_10'] = float((closes[-1] - closes[-10]) / closes[-10] * 100)
+            indicators['price_momentum'] = float((closes[-1] - closes[-10]) / closes[-10] * 100)
         
-        # Price metrics
+        if len(volumes) >= 10:
+            indicators['volume_momentum'] = float((volumes[-1] - np.mean(volumes[-10:])) / np.mean(volumes[-10:]) * 100) if np.mean(volumes[-10:]) > 0 else 0
+        
+        # === Basic Price Metrics ===
         indicators['current_price'] = float(closes[-1])
         indicators['high_low_range'] = float(highs[-1] - lows[-1])
         indicators['high_low_ratio'] = float(indicators['high_low_range'] / closes[-1] * 100) if closes[-1] > 0 else 0
         
         return indicators
+    
+    def _calculate_obv(self, closes: np.ndarray, volumes: np.ndarray) -> float:
+        """Calculate On-Balance Volume"""
+        obv = 0
+        for i in range(1, len(closes)):
+            if closes[i] > closes[i-1]:
+                obv += volumes[i]
+            elif closes[i] < closes[i-1]:
+                obv -= volumes[i]
+        return float(obv)
+    
+    def _calculate_adx(self, highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14) -> float:
+        """
+        Calculate Average Directional Index (ADX)
+        Measures trend strength (0-100, >25 = strong trend)
+        """
+        if len(closes) < period + 1:
+            return 0.0
+        
+        # Calculate +DM and -DM
+        plus_dm = []
+        minus_dm = []
+        
+        for i in range(1, len(highs)):
+            high_diff = highs[i] - highs[i-1]
+            low_diff = lows[i-1] - lows[i]
+            
+            if high_diff > low_diff and high_diff > 0:
+                plus_dm.append(high_diff)
+                minus_dm.append(0)
+            elif low_diff > high_diff and low_diff > 0:
+                plus_dm.append(0)
+                minus_dm.append(low_diff)
+            else:
+                plus_dm.append(0)
+                minus_dm.append(0)
+        
+        # Calculate ATR for normalization
+        atr_values = []
+        for i in range(1, len(closes)):
+            high_low = highs[i] - lows[i]
+            high_close = abs(highs[i] - closes[i-1])
+            low_close = abs(lows[i] - closes[i-1])
+            tr = max(high_low, high_close, low_close)
+            atr_values.append(tr)
+        
+        # Smooth +DI and -DI
+        plus_dm_arr = np.array(plus_dm)
+        minus_dm_arr = np.array(minus_dm)
+        atr_arr = np.array(atr_values)
+        
+        if len(atr_arr) < period:
+            return 0.0
+        
+        plus_di = np.mean(plus_dm_arr[-period:]) / np.mean(atr_arr[-period:]) * 100 if np.mean(atr_arr[-period:]) > 0 else 0
+        minus_di = np.mean(minus_dm_arr[-period:]) / np.mean(atr_arr[-period:]) * 100 if np.mean(atr_arr[-period:]) > 0 else 0
+        
+        # Calculate DX and ADX
+        dx = abs(plus_di - minus_di) / (plus_di + minus_di) * 100 if (plus_di + minus_di) > 0 else 0
+        
+        # ADX is smoothed DX (simplified as single value here)
+        return float(dx)
+    
     
     def _calculate_rsi(self, prices: np.ndarray, period: int = 14) -> float:
         """Calculate Relative Strength Index"""
@@ -309,3 +423,236 @@ class MarketDataCollector:
         if self.session:
             await self.session.close()
             self.logger.info("Market data collector closed")
+    
+    # ============================================================
+    # PARQUET STORAGE & HISTORICAL DATA
+    # ============================================================
+    
+    async def save_snapshot(self, snapshot: Dict):
+        """
+        Save snapshot to Parquet file with daily sharding
+        
+        Storage structure:
+        data/feature_store/YYYYMMDD/snapshots_YYYYMMDD.parquet.gzip
+        """
+        try:
+            storage_config = self.config.get('data', {})
+            storage_path = storage_config.get('storage_path', './data/feature_store')
+            compression = storage_config.get('compression', 'gzip')
+            
+            # Create date-based shard directory
+            timestamp = datetime.fromisoformat(snapshot['timestamp'])
+            date_str = timestamp.strftime('%Y%m%d')
+            shard_dir = Path(storage_path) / date_str
+            shard_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Parquet file path
+            parquet_file = shard_dir / f"snapshots_{date_str}.parquet.{compression}"
+            
+            # Flatten snapshot for DataFrame
+            flat_data = {
+                'timestamp': timestamp,
+                'symbol': snapshot['symbol'],
+                'current_price': snapshot.get('current_price', 0),
+                'bid': snapshot.get('bid', 0),
+                'ask': snapshot.get('ask', 0),
+                'volume_24h': snapshot.get('volume_24h', 0),
+                'price_change_24h': snapshot.get('price_change_24h', 0)
+            }
+            
+            # Add all indicators
+            if 'indicators' in snapshot:
+                for key, value in snapshot['indicators'].items():
+                    flat_data[f'ind_{key}'] = value
+            
+            # Create DataFrame
+            df = pd.DataFrame([flat_data])
+            
+            # Append to existing file or create new
+            if parquet_file.exists():
+                existing_df = pd.read_parquet(parquet_file)
+                df = pd.concat([existing_df, df], ignore_index=True)
+            
+            # Write with compression
+            df.to_parquet(
+                parquet_file,
+                engine='pyarrow',
+                compression=compression,
+                index=False
+            )
+            
+            self.logger.debug(f"Snapshot saved to {parquet_file}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to save snapshot: {e}", exc_info=True)
+    
+    async def load_historical_snapshots(
+        self,
+        start_date: datetime,
+        end_date: Optional[datetime] = None,
+        symbol: Optional[str] = None
+    ) -> pd.DataFrame:
+        """
+        Load historical snapshots from Parquet shards
+        
+        Args:
+            start_date: Start date (inclusive)
+            end_date: End date (inclusive), defaults to today
+            symbol: Filter by symbol, defaults to configured symbol
+        
+        Returns:
+            DataFrame with historical snapshots
+        """
+        try:
+            storage_config = self.config.get('data', {})
+            storage_path = Path(storage_config.get('storage_path', './data/feature_store'))
+            compression = storage_config.get('compression', 'gzip')
+            
+            if end_date is None:
+                end_date = datetime.utcnow()
+            
+            if symbol is None:
+                symbol = self.symbol
+            
+            # Collect all shard files in date range
+            dataframes = []
+            current_date = start_date
+            
+            while current_date <= end_date:
+                date_str = current_date.strftime('%Y%m%d')
+                parquet_file = storage_path / date_str / f"snapshots_{date_str}.parquet.{compression}"
+                
+                if parquet_file.exists():
+                    df = pd.read_parquet(parquet_file)
+                    
+                    # Filter by symbol if specified
+                    if symbol:
+                        df = df[df['symbol'] == symbol]
+                    
+                    dataframes.append(df)
+                    self.logger.debug(f"Loaded {len(df)} snapshots from {parquet_file}")
+                
+                current_date += timedelta(days=1)
+            
+            if not dataframes:
+                self.logger.warning(f"No snapshots found for {start_date} to {end_date}")
+                return pd.DataFrame()
+            
+            # Concatenate all shards
+            result = pd.concat(dataframes, ignore_index=True)
+            result = result.sort_values('timestamp').reset_index(drop=True)
+            
+            self.logger.info(f"Loaded {len(result)} historical snapshots from {len(dataframes)} shards")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load historical snapshots: {e}", exc_info=True)
+            return pd.DataFrame()
+    
+    async def download_historical_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_date: datetime,
+        end_date: Optional[datetime] = None
+    ) -> pd.DataFrame:
+        """
+        Download historical klines from Binance Vision
+        
+        Binance Vision provides free historical data:
+        https://data.binance.vision/data/futures/um/daily/klines/{SYMBOL}/{INTERVAL}/
+        
+        Args:
+            symbol: Trading pair (e.g., BTCUSDT)
+            interval: Timeframe (1m, 5m, 15m, 1h, etc.)
+            start_date: Start date
+            end_date: End date (defaults to today)
+        
+        Returns:
+            DataFrame with OHLCV data
+        """
+        try:
+            if end_date is None:
+                end_date = datetime.utcnow()
+            
+            data_config = self.config.get('data', {})
+            download_url = data_config.get('download_url', 'https://data.binance.vision')
+            
+            all_klines = []
+            current_date = start_date
+            
+            while current_date <= end_date:
+                date_str = current_date.strftime('%Y-%m-%d')
+                zip_filename = f"{symbol}-{interval}-{date_str}.zip"
+                
+                # Binance Vision URL structure
+                url = f"{download_url}/data/futures/um/daily/klines/{symbol}/{interval}/{zip_filename}"
+                
+                self.logger.debug(f"Downloading {url}")
+                
+                try:
+                    async with self.session.get(url) as response:
+                        if response.status == 200:
+                            # Download and extract ZIP
+                            # Note: This is simplified - production would handle ZIP extraction
+                            self.logger.info(f"Downloaded {date_str} klines for {symbol}")
+                        else:
+                            self.logger.warning(f"No data for {date_str}: HTTP {response.status}")
+                
+                except Exception as e:
+                    self.logger.warning(f"Failed to download {date_str}: {e}")
+                
+                current_date += timedelta(days=1)
+            
+            # TODO: Implement ZIP extraction and CSV parsing
+            # For now, return empty DataFrame
+            self.logger.info(f"Historical download complete (extraction not yet implemented)")
+            return pd.DataFrame()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to download historical klines: {e}", exc_info=True)
+            return pd.DataFrame()
+    
+    async def get_funding_rate(self) -> Dict:
+        """Get current and predicted funding rate"""
+        try:
+            url = f"{self.base_url}/fapi/v1/fundingRate"
+            params = {
+                'symbol': self.symbol,
+                'limit': 1
+            }
+            
+            async with self.session.get(url, params=params) as response:
+                if response.status != 200:
+                    return {'current_funding_rate': 0.0, 'next_funding_time': 0}
+                
+                data = await response.json()
+                if data:
+                    latest = data[0]
+                    return {
+                        'current_funding_rate': float(latest['fundingRate']),
+                        'next_funding_time': int(latest['fundingTime'])
+                    }
+                
+                return {'current_funding_rate': 0.0, 'next_funding_time': 0}
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get funding rate: {e}")
+            return {'current_funding_rate': 0.0, 'next_funding_time': 0}
+    
+    async def get_open_interest(self) -> float:
+        """Get current open interest"""
+        try:
+            url = f"{self.base_url}/fapi/v1/openInterest"
+            params = {'symbol': self.symbol}
+            
+            async with self.session.get(url, params=params) as response:
+                if response.status != 200:
+                    return 0.0
+                
+                data = await response.json()
+                return float(data.get('openInterest', 0))
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get open interest: {e}")
+            return 0.0
