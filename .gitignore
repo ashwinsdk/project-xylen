@@ -93,3 +93,6 @@ model_server/__pycache__/
 model_server/training_data/
 model_server/models/*.txt
 model_server/models/*.onnx
+
+# Unwanted docs
+untrack_docs/
