@@ -76,7 +76,7 @@ class EnsembleAggregator:
                         result = await response.json()
                         
                         response_time = asyncio.get_event_loop().time() - start_time
-                        self._update_performance(key, success=True, response_time=response_time)
+                        self._update_performance(key, success=True, response_time=response_time, prediction_data=result)
                         
                         result['model_name'] = endpoint['name']
                         result['model_key'] = key
@@ -97,7 +97,7 @@ class EnsembleAggregator:
             self._update_performance(key, success=False)
             return None
     
-    def _update_performance(self, key: str, success: bool, response_time: float = 0.0):
+    def _update_performance(self, key: str, success: bool, response_time: float = 0.0, prediction_data: Dict = None):
         if key not in self.model_performance:
             return
         
@@ -111,6 +111,14 @@ class EnsembleAggregator:
                 perf['avg_response_time'] = response_time
             else:
                 perf['avg_response_time'] = 0.8 * perf['avg_response_time'] + 0.2 * response_time
+            
+            # Store latest prediction data for dashboard
+            if prediction_data:
+                perf['last_prediction'] = {
+                    'action': prediction_data.get('action'),
+                    'confidence': prediction_data.get('confidence', 0),
+                    'timestamp': datetime.utcnow().isoformat()
+                }
         else:
             perf['failure_count'] += 1
     

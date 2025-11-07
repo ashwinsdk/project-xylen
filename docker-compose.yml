@@ -1,0 +1,185 @@
+# Project Xylen - Full Stack Docker Compose
+# Coordinator + 4 Model Servers + Monitoring
+
+services:
+  # Trading Coordinator
+  coordinator:
+    build:
+      context: ./coordinator
+      dockerfile: Dockerfile
+    container_name: xylen-coordinator
+    restart: unless-stopped
+    env_file:
+      - ./coordinator/.env
+    environment:
+      - BINANCE_TESTNET_API_KEY=${BINANCE_TESTNET_API_KEY}
+      - BINANCE_TESTNET_API_SECRET=${BINANCE_TESTNET_API_SECRET}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./data:/app/data
+      - ./logs/coordinator:/app/logs
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "9090:9090"  # Prometheus metrics
+      - "8765:8765"  # WebSocket for dashboard
+    networks:
+      - xylen-network
+    depends_on:
+      - model-server-1
+      - model-server-2
+      - model-server-3
+      - model-server-4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Model Server 1
+  model-server-1:
+    build:
+      context: ./model_server
+      dockerfile: Dockerfile
+    container_name: xylen-model-1
+    restart: unless-stopped
+    environment:
+      - MODEL_NAME=model_1
+      - PORT=8001
+      - MODEL_PATH=/app/models
+    volumes:
+      - ./models/model_1:/app/models
+      - ./data:/app/data:ro
+      - ./logs/model_1:/app/logs
+    ports:
+      - "8001:8001"
+    networks:
+      - xylen-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Model Server 2
+  model-server-2:
+    build:
+      context: ./model_server
+      dockerfile: Dockerfile
+    container_name: xylen-model-2
+    restart: unless-stopped
+    environment:
+      - MODEL_NAME=model_2
+      - PORT=8002
+      - MODEL_PATH=/app/models
+    volumes:
+      - ./models/model_2:/app/models
+      - ./data:/app/data:ro
+      - ./logs/model_2:/app/logs
+    ports:
+      - "8002:8002"
+    networks:
+      - xylen-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Model Server 3
+  model-server-3:
+    build:
+      context: ./model_server
+      dockerfile: Dockerfile
+    container_name: xylen-model-3
+    restart: unless-stopped
+    environment:
+      - MODEL_NAME=model_3
+      - PORT=8003
+      - MODEL_PATH=/app/models
+    volumes:
+      - ./models/model_3:/app/models
+      - ./data:/app/data:ro
+      - ./logs/model_3:/app/logs
+    ports:
+      - "8003:8003"
+    networks:
+      - xylen-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Model Server 4
+  model-server-4:
+    build:
+      context: ./model_server
+      dockerfile: Dockerfile
+    container_name: xylen-model-4
+    restart: unless-stopped
+    environment:
+      - MODEL_NAME=model_4
+      - PORT=8004
+      - MODEL_PATH=/app/models
+    volumes:
+      - ./models/model_4:/app/models
+      - ./data:/app/data:ro
+      - ./logs/model_4:/app/logs
+    ports:
+      - "8004:8004"
+    networks:
+      - xylen-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Prometheus (Optional - for monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: xylen-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9091:9090"  # Exposed on 9091 to avoid conflict
+    networks:
+      - xylen-network
+
+  # Grafana (Optional - for dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: xylen-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3001:3000"  # Changed to 3001 to avoid conflict with dashboard on 3000
+    networks:
+      - xylen-network
+    depends_on:
+      - prometheus
+
+networks:
+  xylen-network:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

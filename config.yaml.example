@@ -1,107 +1,437 @@
-# TradeProject Configuration File
-# Copy this to config.yaml and customize for your setup
+# Project Xylen Production Configuration - EXAMPLE
+# Target: Python 3.10.12, Ubuntu 24.04.3 LTS
+# Copy to config.yaml and customize for your deployment
+# Branch: xylen/revamp
 
-# System Mode
-dry_run: true  # Set to false to enable actual trading (use testnet first!)
-testnet: true  # Use Binance testnet (always start with this enabled)
+# ============================================================
+# SYSTEM MODE - CRITICAL SAFETY SETTINGS
+# ============================================================
+dry_run: false          # false=execute on testnet, true=log only (no orders)
+testnet: true           # ALWAYS start with testnet=true
+use_real_account: false # Must complete pre-production checklist first
 
-# Model Endpoints
-# List all VM model servers. System handles partial availability automatically.
+# ============================================================
+# MODEL ENDPOINTS - Distributed Inference Cluster
+# ============================================================
+# Systems inventory:
+# - 1x Ubuntu 8GB (always-on primary) - 100.108.252.74
+# - 3x Ubuntu 10GB (workers) - 100.76.230.59, 100.114.244.96, 100.100.164.90
+# - MacBook Air M1 8GB, M2 8GB (coordinator), M4 16GB
 model_endpoints:
-  - host: "192.168.1.100"
+  - host: "100.108.252.74"
     port: 8000
-    name: "model_vm_1"
+    name: "ubuntu-primary-8gb"
     weight: 1.0
     enabled: true
-  - host: "192.168.1.101"
+    timeout: 5.0
+  - host: "100.76.230.59"
     port: 8000
-    name: "model_vm_2"
-    weight: 1.0
+    name: "ubuntu-worker1-10gb"
+    weight: 1.2
     enabled: true
-  - host: "192.168.1.102"
+    timeout: 5.0
+  - host: "100.114.244.96"
     port: 8000
-    name: "model_vm_3"
+    name: "ubuntu-worker2-10gb"
+    weight: 1.2
+    enabled: true
+    timeout: 5.0
+  - host: "100.100.164.90"
+    port: 8000
+    name: "ubuntu-worker3-10gb"
+    weight: 1.0
+    enabled: false
+    timeout: 5.0
+  - host: "192.168.1.200"
+    port: 8000
+    name: "mac-m1-8gb"
     weight: 0.8
     enabled: false
-  - host: "192.168.1.103"
-    port: 8000
-    name: "model_vm_4"
-    weight: 0.8
-    enabled: false
+    timeout: 5.0
 
-# Trading Parameters
+# ============================================================
+# TRADING PARAMETERS
+# ============================================================
 trading:
   symbol: "BTCUSDT"
-  leverage: 1
-  position_size_fraction: 0.1  # Use 10% of equity per trade
-  max_open_positions: 1  # Maximum concurrent positions
-  stop_loss_percent: 0.02  # 2% stop loss
-  take_profit_percent: 0.05  # 5% take profit
+  exchange: "binance_futures"
+  margin_mode: "CROSSED"        # CROSSED or ISOLATED
+  leverage: 1                   # 1-125 for BTCUSDT perp
   
-# Ensemble Configuration
-ensemble:
-  method: "weighted_vote"  # Options: weighted_vote, average_confidence, majority
-  threshold: 0.7  # Minimum confidence to place trade (0-1)
-  weight_decay: 0.95  # Decay factor for recent performance weighting
-  min_responding_models: 1  # Minimum models needed to make decision
+  # Position sizing
+  position_size_method: "fixed_fraction"  # fixed_fraction, kelly, fixed_amount
+  position_size_fraction: 0.10   # 10% of equity per trade
+  kelly_fraction: 0.25           # Kelly criterion cap (conservative)
+  max_position_size_usd: 1000.0  # Absolute maximum
+  min_position_size_usd: 10.0    # Minimum viable trade
+  
+  # Risk management
+  stop_loss_percent: 0.02        # 2% stop loss
+  take_profit_percent: 0.05      # 5% take profit
+  trailing_stop_enabled: false
+  trailing_stop_callback: 0.01   # 1% trailing distance
+  
+  # Constraints
+  max_open_positions: 1
+  max_daily_trades: 20
+  min_trade_interval_seconds: 300  # 5 min cooldown between trades
 
-# Data Collection
+# ============================================================
+# ENSEMBLE - Xylen Adaptive Consensus Algorithm
+# ============================================================
+ensemble:
+  method: "bayesian_weighted"    # weighted_vote, bayesian_weighted, stacked
+  
+  # Weighting scheme with exponential decay
+  weight_decay_halflife: 86400   # 24 hours (older performance decays)
+  performance_window: 100        # Number of recent trades for scoring
+  min_responding_models: 1
+  require_majority: false
+  
+  # Probability calibration (isotonic regression)
+  calibration_method: "isotonic"  # isotonic, platt, none
+  calibration_samples: 1000      # Historical samples for calibration
+  calibration_retrain_interval: 86400  # Re-calibrate daily
+  
+  # Decision thresholds
+  confidence_threshold: 0.70     # Minimum confidence to trade (0-1)
+  uncertainty_threshold: 0.30    # Maximum disagreement (std of predictions)
+  expected_value_threshold: 0.01 # Minimum EV after costs (1%)
+  
+  # Trade cost modeling for EV calculation
+  estimate_slippage_bps: 5       # 5 basis points estimated slippage
+  maker_fee_bps: 2               # 0.02% maker fee
+  taker_fee_bps: 4               # 0.04% taker fee
+  
+  # Meta-learner (Bayesian fusion layer)
+  meta_learner_enabled: true
+  meta_learner_model: "lightgbm"  # lightgbm, logistic, none
+  meta_learner_path: "./data/meta_learner.txt"
+  meta_learner_features:
+    - "model_scores"             # Raw model predictions
+    - "model_confidences"        # Reported confidences
+    - "model_disagreement"       # Std dev of predictions
+    - "recent_winrate"           # Per-model recent performance
+    - "latency"                  # Response time
+  meta_learner_retrain_interval: 86400  # Daily retrain
+
+
+# ============================================================
+# DATA COLLECTION & FEATURE ENGINEERING
+# ============================================================
 data:
+  # Multi-resolution timeframes
   timeframes:
-    - "5m"  # 5-minute candles
-    - "1h"  # 1-hour candles
-  candles_count: 100  # Number of historical candles to send
+    - "5m"   # Primary decision timeframe
+    - "15m"  # Intermediate trend
+    - "1h"   # Macro trend context
+  
+  candles_count: 100             # Historical candles per request
+  
+  # Feature indicators (29+ computed in market_data.py)
   indicators:
     - "rsi"
+    - "rsi_14"
+    - "rsi_28"
     - "volume"
+    - "volume_sma_20"
+    - "volume_ratio"
+    - "ema_9"
     - "ema_20"
     - "ema_50"
+    - "ema_200"
     - "macd"
-    - "bollinger_bands"
+    - "macd_signal"
+    - "macd_hist"
+    - "bb_upper"
+    - "bb_middle"
+    - "bb_lower"
+    - "bb_width"
+    - "atr"
+    - "atr_percent"
+    - "obv"
+    - "adx"
+    - "candle_body_ratio"
+    - "candle_upper_shadow"
+    - "candle_lower_shadow"
+    - "price_momentum"
+    - "volume_momentum"
+  
+  # Data persistence (Parquet shards with compression)
+  storage_path: "./data/feature_store"
+  storage_format: "parquet"      # parquet with gzip
+  compression: "gzip"
+  compression_level: 6
+  shard_interval: "daily"        # daily sharding for efficient queries
+  
+  # Historical data download (binance.vision)
+  download_source: "binance_vision"
+  download_url: "https://data.binance.vision"
 
-# Timing
+# ============================================================
+# TIMING & EXECUTION CONTROL
+# ============================================================
 timing:
-  heartbeat_interval: 60  # Seconds between snapshots (1-3 minutes recommended)
-  model_timeout: 5  # Seconds to wait for model response
-  order_check_interval: 10  # Seconds between order status checks
-  health_check_interval: 300  # Seconds between VM health checks
+  heartbeat_interval: 60         # Decision cycle interval (seconds)
+  model_timeout: 5.0             # Per-model HTTP timeout
+  order_check_interval: 10       # Order status polling interval
+  health_check_interval: 300     # Model health checks (5 min)
+  
+  # Retry configuration with exponential backoff
+  max_retries: 3
+  retry_backoff_base: 2.0        # 2^n backoff (2s, 4s, 8s)
+  retry_backoff_max: 30.0        # Maximum retry delay
+  retry_jitter: 0.1              # 10% random jitter
 
-# Binance API (keys loaded from environment variables)
+# ============================================================
+# BINANCE API - TESTNET & PRODUCTION ENDPOINTS
+# ============================================================
 binance:
+  # Testnet (ALWAYS start here)
   testnet_base_url: "https://testnet.binancefuture.com"
-  api_key_env: "BINANCE_TESTNET_API_KEY"
-  api_secret_env: "BINANCE_TESTNET_API_SECRET"
+  testnet_stream_url: "wss://stream.binancefuture.com"
+  
+  # Production (use only after testnet validation)
+  production_base_url: "https://fapi.binance.com"
+  production_stream_url: "wss://fstream.binance.com"
+  
+  # API credentials from environment
+  # Testnet: BINANCE_TESTNET_API_KEY, BINANCE_TESTNET_API_SECRET
+  # Production: BINANCE_API_KEY, BINANCE_API_SECRET
+  api_key_env: "BINANCE_API_KEY"
+  api_secret_env: "BINANCE_API_SECRET"
+  
+  # Rate limiting (testnet limits, production is higher)
   rate_limit_per_minute: 1200
   rate_limit_orders_per_10s: 50
-
-# Logging and Persistence
-logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  file: "./logs/coordinator.log"
-  max_bytes: 10485760  # 10 MB
-  backup_count: 5
+  rate_limit_buffer: 0.8         # Use 80% of limit (safety margin)
   
-database:
-  sqlite_path: "./data/trades.db"
-  csv_path: "./data/trades.csv"
-  backup_interval_hours: 24
+  # WebSocket (optional, REST is more stable)
+  websocket_enabled: false
+  websocket_reconnect_delay: 5
 
-# Retraining
+# ============================================================
+# LOGGING & OBSERVABILITY
+# ============================================================
+logging:
+  level: "INFO"                  # DEBUG, INFO, WARNING, ERROR
+  format: "json"                 # json or text
+  
+  # Rotating file logs
+  file: "./logs/coordinator.log"
+  max_bytes: 10485760            # 10 MB per file
+  backup_count: 10               # Keep 10 rotated files
+  
+  # Structured fields
+  include_timestamps: true
+  include_hostname: true
+  include_process_id: true
+  include_thread_id: false
+  
+  # Component-specific log levels
+  components:
+    ensemble: "INFO"
+    risk_manager: "INFO"
+    binance_client: "INFO"
+    market_data: "DEBUG"
+
+# ============================================================
+# DATABASE & PERSISTENCE
+# ============================================================
+database:
+  # SQLite for trade history and state
+  sqlite_path: "./data/trades.db"
+  sqlite_timeout: 30.0
+  enable_wal_mode: true          # Write-ahead logging for concurrency
+  
+  # CSV export for analysis
+  csv_path: "./data/trades.csv"
+  csv_append_mode: true
+  
+  # Automated backups
+  backup_enabled: true
+  backup_interval_hours: 24
+  backup_path: "./data/backups"
+  backup_retention_days: 30
+  
+  # Maintenance
+  vacuum_interval_days: 7        # SQLite VACUUM optimization
+  schema_version: 2              # Schema migration tracking
+
+# ============================================================
+# RETRAINING & FEEDBACK LOOP
+# ============================================================
 retraining:
   enabled: true
-  send_feedback_to_models: true  # Send trade outcomes to model /retrain endpoint
-  min_trades_before_retrain: 50  # Minimum trades before triggering retrain
-  retrain_schedule: "0 2 * * *"  # Cron schedule (2 AM daily)
+  
+  # Feedback propagation to model servers
+  send_feedback_to_models: true
+  feedback_delay_seconds: 3600   # 1 hour after trade close
+  feedback_batch_size: 10        # Batch feedback requests
+  
+  # Retraining triggers
+  min_trades_before_retrain: 50
+  retrain_schedule: "0 2 * * *"  # 2 AM daily (cron format)
+  
+  # Labeling strategy for supervised learning
+  label_method: "outcome_based"  # outcome_based, forward_returns
+  label_profit_threshold: 0.005  # 0.5% profit = positive label
+  label_loss_threshold: -0.015   # -1.5% loss = negative label
+  label_window_candles: 20       # Look-ahead window for labeling
 
-# Dashboard API Server (for React dashboard to fetch real data)
+# ============================================================
+# DASHBOARD & API SERVER
+# ============================================================
 dashboard:
   enabled: true
-  port: 5500  # API server port (dashboard runs on 3000)
-  host: "0.0.0.0"
+  port: 5500                     # API server port
+  host: "0.0.0.0"                # Bind to all interfaces
+  
+  # WebSocket for real-time updates
+  websocket_enabled: true
+  websocket_path: "/ws"
+  websocket_heartbeat: 30        # Ping interval
+  
+  # CORS for development
+  cors_enabled: true
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+  
+  # Static file serving (production build)
+  serve_static: false
+  static_path: "../dashboard/dist"
+  
+  # API rate limiting
+  rate_limit_requests_per_minute: 60
 
-# Safety Limits
+# ============================================================
+# MONITORING & METRICS (Prometheus)
+# ============================================================
+monitoring:
+  prometheus_enabled: true
+  prometheus_port: 9090
+  prometheus_path: "/metrics"
+  
+  # Exposed metrics
+  metrics:
+    - "coordinator_heartbeat_total"
+    - "coordinator_trades_total"
+    - "coordinator_pnl_usd"
+    - "coordinator_model_latency_seconds"
+    - "coordinator_ensemble_confidence"
+    - "coordinator_errors_total"
+    - "coordinator_orders_pending"
+    - "coordinator_balance_usd"
+  
+  # Alerting thresholds
+  alert_max_loss_percent: 0.05   # 5% loss threshold
+  alert_model_offline_seconds: 300
+  alert_no_trades_hours: 24
+
+# ============================================================
+# SAFETY LIMITS & CIRCUIT BREAKERS
+# ============================================================
 safety:
-  max_daily_trades: 20
-  max_daily_loss_percent: 0.1  # Stop trading if daily loss exceeds 10%
-  circuit_breaker_consecutive_losses: 5  # Pause after N consecutive losses
-  emergency_shutdown_loss_percent: 0.2  # Emergency stop at 20% loss
+  # Daily loss limits
+  max_daily_loss_percent: 0.10   # 10% daily loss stops trading
+  max_daily_loss_usd: 500.0      # Absolute daily loss limit
+  
+  # Circuit breakers
+  circuit_breaker_consecutive_losses: 5
+  circuit_breaker_cooldown_seconds: 3600  # 1 hour cooldown
+  circuit_breaker_reset_on_win: true
+  
+  # Emergency shutdown
+  emergency_shutdown_loss_percent: 0.20   # 20% total drawdown
+  emergency_shutdown_enabled: true
+  emergency_contact_email: ""    # Optional alert email
+  
+  # Position limits
+  max_leverage_allowed: 5
+  max_total_exposure_usd: 5000.0
+  max_position_duration_hours: 72  # Force close after 72h
+  
+  # Pre-execution validation
+  require_sufficient_balance: true
+  min_balance_buffer_percent: 0.10  # Keep 10% buffer
+  validate_margin_requirements: true
+
+# ============================================================
+# BACKTESTING & SIMULATION
+# ============================================================
+backtesting:
+  enabled: false                 # Enable for historical simulation
+  
+  # Data range
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+  
+  # Initial conditions
+  initial_balance: 10000.0
+  initial_leverage: 1
+  
+  # Simulation parameters
+  slippage_model: "fixed_bps"    # fixed_bps, volume_based, realistic
+  slippage_bps: 5
+  include_fees: true
+  
+  # Output
+  report_path: "./data/backtest_report.csv"
+  plot_equity_curve: true
+  save_trade_log: true
+
+# ============================================================
+# ADVANCED FEATURES (Optional)
+# ============================================================
+advanced:
+  # Regime detection (bull/bear/sideways)
+  regime_detection_enabled: false
+  regime_model_path: "./data/regime_model.pkl"
+  regime_update_interval: 3600   # Update hourly
+  
+  # Multi-symbol support (future)
+  multi_symbol_enabled: false
+  symbols: ["BTCUSDT", "ETHUSDT"]
+  symbol_correlation_check: true
+  
+  # Execution algorithms
+  execution_algo: "market"       # market, limit, twap, iceberg
+  limit_order_offset_bps: 2      # For limit orders
+  
+  # Model response caching (low latency optimization)
+  model_response_cache_enabled: false
+  model_response_cache_ttl: 30   # Seconds (use with caution)
+  
+  # Feature importance tracking
+  track_feature_importance: true
+  feature_importance_path: "./data/feature_importance.json"
+
+# ============================================================
+# TELEGRAM ALERTS (Highly Recommended for Safety)
+# ============================================================
+telegram:
+  enabled: true                  # Enable/disable all telegram alerts
+  
+  # Alert filtering - which events to send
+  alert_levels:
+    - "TRADE"                    # Trade opened/closed notifications
+    - "ERROR"                    # System errors and failures
+    - "CIRCUIT_BREAKER"          # Trading halted due to losses
+    - "WARNING"                  # Low balance, model offline, etc.
+    - "DAILY_SUMMARY"            # End-of-day performance report
+    - "SYSTEM"                   # Startup/shutdown events
+  
+  # Rate limiting (prevent spam)
+  rate_limit:
+    enabled: true
+    seconds_between_alerts: 10   # Min seconds between same alert type
+  
+  # Daily summary schedule
+  daily_summary_time: "23:59"    # UTC time for daily report
+  
+  # Alert customization
+  include_charts: false          # Attach performance charts (future feature)
+  mention_on_critical: false     # Mention user on critical alerts
+
