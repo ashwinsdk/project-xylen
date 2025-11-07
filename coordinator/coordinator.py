@@ -7,12 +7,20 @@ from typing import Dict, List, Optional
 import yaml
 import signal
 import time
+import psutil
 
 from binance_client import BinanceClient, OrderSide, OrderType
 from ensemble import EnsembleAggregator
 from risk_manager import RiskManager
 from data_logger import DataLogger
 from market_data import MarketDataCollector
+
+try:
+    from telegram_alerts import initialize_alerter, get_alerter, close_alerter
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    logging.warning("telegram_alerts not available")
 
 try:
     from prometheus_client import Counter, Gauge, Histogram, start_http_server
@@ -73,6 +81,7 @@ class TradingCoordinator:
         self.is_running = False
         self.current_position = None
         self.open_trades = {}  # trade_id -> trade_info
+        self.circuit_breaker_alerted = False  # Track if we've alerted about circuit breaker
         
         # Metrics
         self._init_metrics()
@@ -158,7 +167,11 @@ class TradingCoordinator:
             await self.market_data.initialize()
             await self.data_logger.initialize()
             await self.binance_client.initialize()
-            await self.risk_manager.initialize()
+            # RiskManager doesn't need async initialization
+            
+            # Initialize telegram alerts
+            if TELEGRAM_AVAILABLE:
+                await initialize_alerter(self.config)
             
             self.logger.info("All components initialized successfully")
         except Exception as e:
@@ -172,6 +185,7 @@ class TradingCoordinator:
             return
         
         self.is_running = True
+        self.start_time = time.time()  # Track uptime
         
         # Start async tasks
         tasks = [
@@ -213,8 +227,30 @@ class TradingCoordinator:
                     self.logger.warning("Circuit breaker active, skipping trading cycle")
                     if self.metrics:
                         self.metrics['circuit_breaker_active'].set(1)
+                    
+                    # Send alert on first detection
+                    if not self.circuit_breaker_alerted and TELEGRAM_AVAILABLE:
+                        try:
+                            alerter = get_alerter()
+                            if alerter:
+                                await alerter.alert_circuit_breaker(
+                                    reason='Consecutive losses exceeded threshold',
+                                    details={
+                                        'consecutive_losses': self.risk_manager.consecutive_losses,
+                                        'daily_loss': self.risk_manager.daily_loss,
+                                        'circuit_breaker_threshold': self.risk_manager.circuit_breaker_threshold
+                                    }
+                                )
+                                self.circuit_breaker_alerted = True
+                        except Exception as e:
+                            self.logger.warning(f"Failed to send circuit breaker alert: {e}")
+                    
                     await asyncio.sleep(heartbeat_interval)
                     continue
+                
+                # Reset alert flag when circuit breaker clears
+                if self.circuit_breaker_alerted:
+                    self.circuit_breaker_alerted = False
                 
                 if self.metrics:
                     self.metrics['circuit_breaker_active'].set(0)
@@ -296,14 +332,46 @@ class TradingCoordinator:
                     ).inc()
             
             # Step 3: Aggregate ensemble decision
-            decision = self.ensemble.aggregate(model_responses, snapshot)
+            decision = self.ensemble.aggregate(model_responses)
             
             self.logger.info(f"Ensemble decision: {decision['action']} "
                            f"(confidence={decision['confidence']:.3f}, "
                            f"expected_value={decision.get('expected_value', 0):.4f})")
             
             # Step 4: Validate with risk manager
-            risk_check = self.risk_manager.validate_trade(decision, snapshot)
+            # Build risk metrics from current state
+            from risk_manager import RiskMetrics
+            risk_metrics = RiskMetrics(
+                total_equity=10000.0,  # TODO: Get from binance account
+                available_margin=10000.0,  # TODO: Get from binance account
+                total_exposure=0.0,  # TODO: Calculate from open positions
+                open_positions=len(self.open_trades),
+                daily_pnl=0.0,  # TODO: Calculate from today's trades
+                daily_trades=0,  # TODO: Count from today's trades
+                consecutive_losses=self.risk_manager.consecutive_losses,
+                win_rate=0.5  # TODO: Calculate from historical trades
+            )
+            
+            # Calculate position size
+            current_price = float(snapshot.get('current_price', 0))
+            position_size_obj = self.risk_manager.calculate_position_size(
+                current_price=current_price,
+                account_balance=risk_metrics.available_margin,
+                leverage=self.config.get('trading', {}).get('leverage', 1)
+            )
+            
+            # Validate trade
+            is_valid, rejection_reason = self.risk_manager.validate_trade(
+                risk_metrics, 
+                position_size_obj.size_usd
+            )
+            
+            # Build risk_check dict for compatibility
+            risk_check = {
+                'approved': is_valid,
+                'reason': rejection_reason,
+                'position_size': position_size_obj.size_usd if is_valid else 0
+            }
             
             # Log ensemble decision
             await self.data_logger.log_ensemble_decision(
@@ -336,21 +404,8 @@ class TradingCoordinator:
                 else:
                     self.logger.debug(f"No trade signal (action={decision['action']})")
             
-            # Broadcast update to WebSocket clients
-            await self._broadcast_update({
-                'type': 'decision',
-                'timestamp': datetime.utcnow().isoformat(),
-                'snapshot': {
-                    'price': snapshot.get('current_price'),
-                    'rsi': snapshot.get('indicators', {}).get('rsi'),
-                    'volume': snapshot.get('volume_24h')
-                },
-                'decision': {
-                    'action': decision['action'],
-                    'confidence': decision['confidence'],
-                    'risk_check': risk_check['approved']
-                }
-            })
+            # Broadcast comprehensive update to WebSocket clients
+            await self._broadcast_status_update(snapshot, decision, risk_check)
             
         except Exception as e:
             self.logger.error(f"Error in decision cycle: {e}", exc_info=True)
@@ -476,6 +531,25 @@ class TradingCoordinator:
             self.logger.info(f"Trade executed successfully: trade_id={trade_id}, "
                            f"order_id={order_state.order_id}")
             
+            # Send Telegram alert for trade opened
+            if TELEGRAM_AVAILABLE:
+                try:
+                    alerter = get_alerter()
+                    if alerter:
+                        await alerter.alert_trade_opened({
+                            'trade_id': trade_id,
+                            'symbol': self.config.get('trading', {}).get('symbol', 'BTCUSDT'),
+                            'side': decision['action'],
+                            'quantity': quantity,
+                            'entry_price': order_state.avg_price if order_state.avg_price > 0 else current_price,
+                            'stop_loss': stop_loss,
+                            'take_profit': take_profit,
+                            'confidence': decision['confidence'],
+                            'expected_value': decision.get('expected_value', 0)
+                        })
+                except Exception as e:
+                    self.logger.warning(f"Failed to send trade opened alert: {e}")
+            
         except Exception as e:
             self.logger.error(f"Error executing trade: {e}", exc_info=True)
             await self.data_logger.log_system_event(
@@ -484,6 +558,19 @@ class TradingCoordinator:
                 component='execute_trade',
                 message=f'Trade execution error: {e}'
             )
+            
+            # Send Telegram alert for error
+            if TELEGRAM_AVAILABLE:
+                try:
+                    alerter = get_alerter()
+                    if alerter:
+                        await alerter.alert_error(
+                            error_type='TRADE_EXECUTION',
+                            message=f'Trade execution failed: {str(e)}',
+                            details={'exception': str(e)}
+                        )
+                except Exception as alert_err:
+                    self.logger.warning(f"Failed to send error alert: {alert_err}")
     
     async def _health_check_loop(self):
         """Periodic health checks for model servers and system"""
@@ -494,15 +581,29 @@ class TradingCoordinator:
         while self.is_running:
             try:
                 # Check model server health
-                health_status = await self.ensemble.check_model_health()
+                health_status_list = await self.ensemble.check_model_health()
                 
-                # Log health check
+                # Convert list to dict for easier processing
+                health_status = {}
+                for health_item in health_status_list:
+                    if isinstance(health_item, dict):
+                        model_name = health_item.get('model_name', 'unknown')
+                        health_status[model_name] = health_item
+                
+                # Log health check (convert datetime objects to strings)
+                health_log = {}
+                for model, status in health_status.items():
+                    health_log[model] = {
+                        'healthy': status.get('healthy', False),
+                        'error': status.get('error', None)
+                    }
+                
                 await self.data_logger.log_system_event(
                     event_type='HEALTH_CHECK',
                     severity='INFO',
                     component='health_check',
                     message='Health check completed',
-                    details=health_status
+                    details=health_log
                 )
                 
                 # Check for unhealthy models
@@ -518,7 +619,7 @@ class TradingCoordinator:
                         severity='WARNING',
                         component='health_check',
                         message=f'Unhealthy models: {unhealthy_models}',
-                        details=health_status
+                        details=health_log
                     )
                 
                 # Update account equity metric
@@ -528,6 +629,9 @@ class TradingCoordinator:
                         self.metrics['account_equity'].set(balance.get('total_equity', 0))
                     except Exception as e:
                         self.logger.debug(f"Failed to update equity metric: {e}")
+                
+                # Broadcast comprehensive status update to dashboard
+                await self._broadcast_status_update()
                 
                 await asyncio.sleep(health_check_interval)
                 
@@ -550,12 +654,15 @@ class TradingCoordinator:
             self.logger.info(f"WebSocket client connected: {websocket.remote_address}")
             
             try:
-                # Send initial state
+                # Send initial welcome message
                 await websocket.send(json.dumps({
                     'type': 'welcome',
                     'timestamp': datetime.utcnow().isoformat(),
                     'message': 'Connected to Xylen Trading Coordinator'
                 }))
+                
+                # Send initial comprehensive status
+                await self._broadcast_status_update()
                 
                 # Keep connection alive
                 async for message in websocket:
@@ -604,6 +711,120 @@ class TradingCoordinator:
         except Exception as e:
             self.logger.debug(f"Error broadcasting update: {e}")
     
+    async def _broadcast_status_update(self, snapshot=None, decision=None, risk_check=None):
+        """Broadcast comprehensive status update including models, coordinator, and system status"""
+        try:
+            # Get model health status
+            model_health = await self.ensemble.check_model_health()
+            
+            # Build comprehensive status
+            status = {
+                'type': 'status_update',
+                'timestamp': datetime.utcnow().isoformat(),
+                
+                # Coordinator status
+                'coordinator': {
+                    'status': 'running' if self.is_running else 'stopped',
+                    'dry_run': self.config.get('dry_run', True),
+                    'testnet': self.config.get('testnet', True),
+                    'symbol': self.config.get('trading', {}).get('symbol', 'BTCUSDT'),
+                    'uptime_seconds': int(time.time() - self.start_time) if hasattr(self, 'start_time') else 0,
+                    'websocket_clients': len(self.ws_clients),
+                    'open_trades': len(self.open_trades),
+                    'circuit_breaker': 'active' if self.risk_manager.circuit_breaker_active() else 'normal',
+                    'cpu_usage': round(psutil.Process().cpu_percent(interval=0.1), 1),
+                    'memory_usage': round(psutil.Process().memory_info().rss / 1024 / 1024, 1)
+                },
+                
+                # Model server status
+                'models': self._format_model_health(model_health),
+                
+                # Market snapshot (if available)
+                'market': {
+                    'price': snapshot.get('current_price') if snapshot else None,
+                    'rsi': snapshot.get('indicators', {}).get('rsi') if snapshot else None,
+                    'volume_24h': snapshot.get('volume_24h') if snapshot else None,
+                } if snapshot else {},
+                
+                # Latest decision (if available)
+                'decision': {
+                    'action': decision.get('action') if decision else 'hold',
+                    'confidence': decision.get('confidence') if decision else 0,
+                    'risk_approved': risk_check.get('approved') if risk_check else None,
+                } if decision else {},
+                
+                # Performance metrics
+                'performance': {
+                    'total_pnl': 0,  # TODO: Get from data logger
+                    'daily_pnl': 0,
+                    'win_rate': 0,
+                    'total_trades': 0,
+                }
+            }
+            
+            await self._broadcast_update(status)
+            
+        except Exception as e:
+            self.logger.debug(f"Error broadcasting status update: {e}")
+    
+    def _format_model_health(self, health_status):
+        """Format model health status for dashboard"""
+        models = []
+        
+        # Handle both dict and list responses
+        if isinstance(health_status, dict):
+            for model_name, status in health_status.items():
+                # Extract health data from nested 'data' field
+                health_data = status.get('data', {})
+                perf_data = status.get('performance', {})
+                last_pred = perf_data.get('last_prediction', {})
+                
+                models.append({
+                    'name': model_name,
+                    'status': 'online' if status.get('healthy', False) else 'offline',
+                    'online': status.get('healthy', False),
+                    'training': health_data.get('training', False),
+                    'continuous_learning': health_data.get('continuous_learning', False),
+                    'data_collector_active': health_data.get('data_collector_active', False),
+                    'confidence': last_pred.get('confidence', 0),
+                    'latency_ms': round(perf_data.get('avg_response_time', 0) * 1000, 1),
+                    'last_prediction': last_pred.get('timestamp'),
+                    'version': health_data.get('model_version'),
+                    'model_type': health_data.get('model_type'),
+                    'samples_trained': status.get('samples_trained', 0),
+                    'training_samples': health_data.get('training_samples', 0),
+                    'uptime_seconds': health_data.get('uptime_seconds', 0),
+                    'memory_usage_mb': health_data.get('memory_usage_mb', 0),
+                    'cpu_percent': health_data.get('cpu_percent', 0)
+                })
+        elif isinstance(health_status, list):
+            for idx, status in enumerate(health_status, 1):
+                # Extract health data from nested 'data' field
+                health_data = status.get('data', {})
+                perf_data = status.get('performance', {})
+                last_pred = perf_data.get('last_prediction', {})
+                
+                models.append({
+                    'name': status.get('model_name', f'Model {idx}'),
+                    'status': 'online' if status.get('healthy', False) else 'offline',
+                    'online': status.get('healthy', False),
+                    'training': health_data.get('training', False),
+                    'continuous_learning': health_data.get('continuous_learning', False),
+                    'data_collector_active': health_data.get('data_collector_active', False),
+                    'confidence': last_pred.get('confidence', 0),
+                    'latency_ms': round(perf_data.get('avg_response_time', 0) * 1000, 1),
+                    'last_prediction': last_pred.get('timestamp'),
+                    'version': health_data.get('model_version'),
+                    'model_type': health_data.get('model_type'),
+                    'samples_trained': status.get('samples_trained', 0),
+                    'training_samples': health_data.get('training_samples', 0),
+                    'uptime_seconds': health_data.get('uptime_seconds', 0),
+                    'memory_usage_mb': health_data.get('memory_usage_mb', 0),
+                    'cpu_percent': health_data.get('cpu_percent', 0)
+                })
+        
+        return models
+    
     async def shutdown(self):
         """Graceful shutdown with cleanup"""
         self.logger.info("Shutting down Trading Coordinator")
@@ -648,6 +869,15 @@ class TradingCoordinator:
             await self.market_data.close()
             await self.data_logger.close()
             await self.binance_client.close()
+            
+            # Close telegram alerter
+            if TELEGRAM_AVAILABLE:
+                try:
+                    await close_alerter()
+                    self.logger.info("Telegram alerter closed")
+                except Exception as e:
+                    self.logger.warning(f"Failed to close telegram alerter: {e}")
+            
             self.logger.info("All components closed successfully")
         except Exception as e:
             self.logger.error(f"Error closing components: {e}")

@@ -125,16 +125,19 @@ class BinanceClient:
         else:
             self.base_url = binance_config.get('production_base_url', 'https://fapi.binance.com')
         
-        # API credentials from environment
-        api_key_env = binance_config.get('api_key_env', 'qbbZMu6CwZnInHjyYbUXHZF4u1blm9bYhvsD13QMJFVrmrA1pCZ6cAlJcCvoVmMM')
-        api_secret_env = binance_config.get('api_secret_env', 'tSWmZfFY29psYznJgmhDTMQhUBlXSoo58uu41rdxew66SmI6haaPMqzmt415GDND')
-        
-        self.api_key = os.getenv(api_key_env)
-        self.api_secret = os.getenv(api_secret_env)
+        # API credentials from environment variables
+        if self.testnet:
+            self.api_key = os.getenv('BINANCE_TESTNET_API_KEY')
+            self.api_secret = os.getenv('BINANCE_TESTNET_API_SECRET')
+        else:
+            self.api_key = os.getenv('BINANCE_API_KEY')
+            self.api_secret = os.getenv('BINANCE_API_SECRET')
         
         if not self.dry_run:
             if not self.api_key or not self.api_secret:
-                raise ValueError(f"API credentials not found in environment: {api_key_env}, {api_secret_env}")
+                raise ValueError(f"API credentials not found in environment variables. "
+                               f"Please set BINANCE{'_TESTNET' if self.testnet else ''}_API_KEY "
+                               f"and BINANCE{'_TESTNET' if self.testnet else ''}_API_SECRET")
         
         # Rate limiting
         rate_limit = binance_config.get('rate_limit_per_minute', 1200)

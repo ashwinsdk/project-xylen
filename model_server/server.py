@@ -14,7 +14,7 @@ from retrain_optimized import OptimizedRetrainManager as RetrainManager
 from continuous_trainer import ContinuousTrainer
 
 try:
-    from prometheus_client import Counter, Gauge, Histogram, make_asgi_app
+    from prometheus_client import Counter, Gauge, Histogram, make_asgi_app, REGISTRY, CollectorRegistry
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -38,16 +38,29 @@ retrain_manager = None
 continuous_trainer = None
 start_time = time.time()
 
-# Prometheus metrics
+# Prometheus metrics - use try/except to handle re-registration on reload
 if PROMETHEUS_AVAILABLE:
-    metrics = {
-        'predictions_total': Counter('model_predictions_total', 'Total predictions', ['action']),
-        'prediction_latency': Histogram('model_prediction_latency_seconds', 'Prediction latency'),
-        'prediction_confidence': Histogram('model_prediction_confidence', 'Prediction confidence', buckets=[0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]),
-        'retrains_total': Counter('model_retrains_total', 'Total retrains'),
-        'training_samples': Gauge('model_training_samples', 'Training samples collected'),
-        'model_score': Gauge('model_score', 'Current model performance score'),
-    }
+    try:
+        metrics = {
+            'predictions_total': Counter('model_predictions_total', 'Total predictions', ['action']),
+            'prediction_latency': Histogram('model_prediction_latency_seconds', 'Prediction latency'),
+            'prediction_confidence': Histogram('model_prediction_confidence', 'Prediction confidence', buckets=[0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]),
+            'retrains_total': Counter('model_retrains_total', 'Total retrains'),
+            'training_samples': Gauge('model_training_samples', 'Training samples collected'),
+            'model_score': Gauge('model_score', 'Current model performance score'),
+        }
+    except ValueError as e:
+        # Metrics already registered, retrieve existing ones
+        logger.warning(f"Metrics already registered, reusing existing: {e}")
+        from prometheus_client import REGISTRY
+        metrics = {
+            'predictions_total': REGISTRY._names_to_collectors.get('model_predictions_total'),
+            'prediction_latency': REGISTRY._names_to_collectors.get('model_prediction_latency_seconds'),
+            'prediction_confidence': REGISTRY._names_to_collectors.get('model_prediction_confidence'),
+            'retrains_total': REGISTRY._names_to_collectors.get('model_retrains_total'),
+            'training_samples': REGISTRY._names_to_collectors.get('model_training_samples'),
+            'model_score': REGISTRY._names_to_collectors.get('model_score'),
+        }
     
     # Add Prometheus metrics endpoint
     metrics_app = make_asgi_app()
@@ -96,6 +109,9 @@ class HealthResponse(BaseModel):
     model_type: Optional[str] = None
     model_version: Optional[str] = None
     training_samples: int
+    continuous_learning: bool = False
+    training: bool = False
+    data_collector_active: bool = False
 
 @app.on_event("startup")
 async def startup_event():
@@ -135,6 +151,16 @@ async def health_check() -> HealthResponse:
     if retrain_manager and hasattr(retrain_manager, 'sample_count'):
         training_samples_count = retrain_manager.sample_count
     
+    # Check continuous learning status
+    continuous_learning_active = False
+    training_active = False
+    if continuous_trainer:
+        continuous_learning_active = getattr(continuous_trainer, 'is_running', False)
+        training_active = getattr(continuous_trainer, 'is_training', False)
+    
+    # Check data collector status (placeholder - would need actual data collector instance)
+    data_collector_active = False  # TODO: Integrate with actual data collector
+    
     return HealthResponse(
         status="healthy",
         uptime_seconds=uptime,
@@ -143,7 +169,10 @@ async def health_check() -> HealthResponse:
         model_loaded=model_loader.is_loaded() if model_loader else False,
         model_type=model_loader.model_type if model_loader else None,
         model_version=os.getenv('MODEL_VERSION', '1.0'),
-        training_samples=training_samples_count
+        training_samples=training_samples_count,
+        continuous_learning=continuous_learning_active,
+        training=training_active,
+        data_collector_active=data_collector_active
     )
 
 
@@ -165,7 +194,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
             # Extract features
             features = _extract_features(request.candles, request.indicators)
             
-            # Make prediction
+            # Make prediction (returns dict)
             prediction = model_loader.predict(
                 candles=request.candles,
                 indicators=request.indicators,
@@ -175,20 +204,20 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
             # Calculate stop loss and take profit
             current_price = request.candles[-1]['close'] if request.candles else 0
             stop_loss, take_profit = _calculate_sl_tp(
-                action=prediction.action,
+                action=prediction['action'],
                 current_price=current_price,
-                confidence=prediction.confidence
+                confidence=prediction['confidence']
             )
             
             response = PredictionResponse(
                 model_name=os.getenv('MODEL_NAME', 'lightgbm_model'),
-                action=prediction.action,
-                confidence=prediction.confidence,
-                probability=getattr(prediction, 'probability', None),
-                expected_return=getattr(prediction, 'expected_return', None),
+                action=prediction['action'],
+                confidence=prediction['confidence'],
+                probability=prediction.get('probability'),
+                expected_return=prediction.get('expected_return'),
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                raw_score=prediction.raw_score,
+                raw_score=prediction['raw_score'],
                 latency_ms=(time.time() - start_time) * 1000
             )
         

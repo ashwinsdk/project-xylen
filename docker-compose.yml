@@ -9,9 +9,13 @@ services:
       dockerfile: Dockerfile
     container_name: xylen-coordinator
     restart: unless-stopped
+    env_file:
+      - ./coordinator/.env
     environment:
-      - BINANCE_API_KEY=${BINANCE_API_KEY}
-      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_TESTNET_API_KEY=${BINANCE_TESTNET_API_KEY}
+      - BINANCE_TESTNET_API_SECRET=${BINANCE_TESTNET_API_SECRET}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     volumes:
       - ./data:/app/data
       - ./logs/coordinator:/app/logs
@@ -166,7 +170,7 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     ports:
-      - "3000:3000"
+      - "3001:3000"  # Changed to 3001 to avoid conflict with dashboard on 3000
     networks:
       - xylen-network
     depends_on:

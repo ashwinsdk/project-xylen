@@ -483,6 +483,10 @@ class RiskManager:
         self.circuit_breaker_open_time = None
         logger.info("Circuit breaker reset")
     
+    def circuit_breaker_active(self) -> bool:
+        """Check if circuit breaker is currently active (trading halted)"""
+        return self.circuit_breaker_state == CircuitBreakerState.OPEN
+    
     def _get_cooldown_remaining(self) -> float:
         """Get remaining cooldown time"""
         if self.circuit_breaker_open_time:

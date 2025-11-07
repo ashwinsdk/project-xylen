@@ -1,0 +1,67 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create coordinator package
+        run: |
+          mkdir -p release-packages
+          zip -r release-packages/coordinator-v${{ steps.get_version.outputs.VERSION }}.zip \
+            coordinator/ \
+            config.yaml.example \
+            docker-compose.yml \
+            .env.example \
+            -x "coordinator/__pycache__/*" \
+            -x "coordinator/data/*" \
+            -x "coordinator/logs/*" \
+            -x "coordinator/*.pyc"
+      
+      - name: Create model server package
+        run: |
+          zip -r release-packages/model-server-v${{ steps.get_version.outputs.VERSION }}.zip \
+            model_server/ \
+            -x "model_server/__pycache__/*" \
+            -x "model_server/data/*" \
+            -x "model_server/logs/*" \
+            -x "model_server/models/*.txt" \
+            -x "model_server/*.pyc"
+      
+      - name: Create coordinator release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Coordinator v${{ steps.get_version.outputs.VERSION }}
+          tag_name: coordinator-v${{ steps.get_version.outputs.VERSION }}
+          body_path: release_notes/coordinator/v${{ steps.get_version.outputs.VERSION }}.md
+          files: release-packages/coordinator-v${{ steps.get_version.outputs.VERSION }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create model server release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Model Server v${{ steps.get_version.outputs.VERSION }}
+          tag_name: model-server-v${{ steps.get_version.outputs.VERSION }}
+          body_path: release_notes/model_server/v${{ steps.get_version.outputs.VERSION }}.md
+          files: release-packages/model-server-v${{ steps.get_version.outputs.VERSION }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

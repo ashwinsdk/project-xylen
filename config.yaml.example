@@ -407,3 +407,31 @@ advanced:
   # Feature importance tracking
   track_feature_importance: true
   feature_importance_path: "./data/feature_importance.json"
+
+# ============================================================
+# TELEGRAM ALERTS (Highly Recommended for Safety)
+# ============================================================
+telegram:
+  enabled: true                  # Enable/disable all telegram alerts
+  
+  # Alert filtering - which events to send
+  alert_levels:
+    - "TRADE"                    # Trade opened/closed notifications
+    - "ERROR"                    # System errors and failures
+    - "CIRCUIT_BREAKER"          # Trading halted due to losses
+    - "WARNING"                  # Low balance, model offline, etc.
+    - "DAILY_SUMMARY"            # End-of-day performance report
+    - "SYSTEM"                   # Startup/shutdown events
+  
+  # Rate limiting (prevent spam)
+  rate_limit:
+    enabled: true
+    seconds_between_alerts: 10   # Min seconds between same alert type
+  
+  # Daily summary schedule
+  daily_summary_time: "23:59"    # UTC time for daily report
+  
+  # Alert customization
+  include_charts: false          # Attach performance charts (future feature)
+  mention_on_critical: false     # Mention user on critical alerts
+
