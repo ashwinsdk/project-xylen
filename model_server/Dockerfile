@@ -27,12 +27,15 @@ COPY models.env.example .
 # Create necessary directories
 RUN mkdir -p /app/logs /app/models /app/training_data
 
+# Set default port (can be overridden by docker-compose)
+ENV PORT=8000
+
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check (use PORT variable)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Run server
 CMD ["python", "server.py"]

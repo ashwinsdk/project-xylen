@@ -1,55 +1,116 @@
-import React from 'react';
-import './TradesList.css';
+import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 
 function TradesList({ trades }) {
-  const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
-  };
-
-  return (
-    <div className="trades-list-container">
-      <div className="trades-table">
-        <div className="table-header">
-          <div className="table-cell">Time</div>
-          <div className="table-cell">Side</div>
-          <div className="table-cell">Entry</div>
-          <div className="table-cell">Exit</div>
-          <div className="table-cell">PNL</div>
-          <div className="table-cell">PNL %</div>
-          <div className="table-cell">Status</div>
-        </div>
-        
-        {trades.length === 0 ? (
-          <div className="no-trades">No trades yet</div>
-        ) : (
-          trades.map((trade) => (
-            <div key={trade.id} className="table-row">
-              <div className="table-cell">{formatTimestamp(trade.timestamp)}</div>
-              <div className="table-cell">
-                <span className={`side-badge ${trade.side}`}>{trade.side.toUpperCase()}</span>
-              </div>
-              <div className="table-cell">${trade.entry_price.toFixed(2)}</div>
-              <div className="table-cell">
-                {trade.exit_price ? `$${trade.exit_price.toFixed(2)}` : '-'}
-              </div>
-              <div className={`table-cell pnl ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
-                ${trade.pnl ? trade.pnl.toFixed(2) : '0.00'}
-              </div>
-              <div className={`table-cell pnl ${trade.pnl_percent >= 0 ? 'positive' : 'negative'}`}>
-                {trade.pnl_percent ? trade.pnl_percent.toFixed(2) : '0.00'}%
-              </div>
-              <div className="table-cell">
-                <span className={`status-badge ${trade.status.toLowerCase()}`}>
-                  {trade.status}
-                </span>
-              </div>
+    if (!trades || trades.length === 0) {
+        return (
+            <div className="xylen-card">
+                <div className="xylen-card-header">
+                    <h2 className="text-xl font-bold text-white">Recent Trades</h2>
+                </div>
+                <div className="xylen-card-body">
+                    <div className="text-center py-12 text-gray-400">
+                        <p>No trades yet. Waiting for trading signals...</p>
+                    </div>
+                </div>
             </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
+        );
+    }
+
+    return (
+        <div className="xylen-card">
+            <div className="xylen-card-header">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-white">Recent Trades</h2>
+                    <span className="text-sm text-gray-400">{trades.length} trades</span>
+                </div>
+            </div>
+            <div className="xylen-card-body p-0">
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full">
+                        <thead className="bg-xylen-dark-800 border-b border-xylen-dark-700">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    Time
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    Symbol
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    Side
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    Entry
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    Exit
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    P&L
+                                </th>
+                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    Status
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-xylen-dark-700">
+                            {trades.map((trade, index) => (
+                                <tr
+                                    key={trade.id || index}
+                                    className="hover:bg-xylen-dark-800/50 transition-colors slide-in"
+                                >
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                        {new Date(trade.timestamp).toLocaleTimeString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                        {trade.symbol || 'BTCUSDT'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className={`flex items-center space-x-1 ${trade.side === 'long' || trade.side === 'BUY'
+                                                ? 'text-green-400'
+                                                : 'text-red-400'
+                                            }`}>
+                                            {trade.side === 'long' || trade.side === 'BUY' ? (
+                                                <TrendingUp className="w-4 h-4" />
+                                            ) : (
+                                                <TrendingDown className="w-4 h-4" />
+                                            )}
+                                            <span className="text-sm font-semibold">
+                                                {(trade.side || 'LONG').toUpperCase()}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-white">
+                                        ${trade.entry_price?.toLocaleString() || '0.00'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-white">
+                                        {trade.exit_price ? `$${trade.exit_price.toLocaleString()}` : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono font-semibold">
+                                        {trade.pnl !== undefined ? (
+                                            <span className={trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400">-</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <span className={`status-badge ${trade.status === 'open' ? 'status-info' :
+                                                trade.status === 'closed' && trade.pnl >= 0 ? 'status-success' :
+                                                    trade.status === 'closed' && trade.pnl < 0 ? 'status-error' :
+                                                        'status-warning'
+                                            }`}>
+                                            {trade.status?.toUpperCase() || 'OPEN'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 export default TradesList;

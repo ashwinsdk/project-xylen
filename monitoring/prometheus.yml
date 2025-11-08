@@ -1,0 +1,50 @@
+# Prometheus Configuration for Project Xylen
+# Scrapes metrics from coordinator and model servers
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'xylen-trading'
+    environment: 'production'
+
+scrape_configs:
+  # Coordinator metrics
+  - job_name: 'coordinator'
+    static_configs:
+      - targets: ['coordinator:9090']
+        labels:
+          service: 'coordinator'
+          component: 'trading-engine'
+
+  # Model Server 1
+  - job_name: 'model-server-1'
+    static_configs:
+      - targets: ['model-server-1:8001']
+        labels:
+          service: 'model-server'
+          model: 'model_1'
+
+  # Model Server 2
+  - job_name: 'model-server-2'
+    static_configs:
+      - targets: ['model-server-2:8002']
+        labels:
+          service: 'model-server'
+          model: 'model_2'
+
+  # Model Server 3
+  - job_name: 'model-server-3'
+    static_configs:
+      - targets: ['model-server-3:8003']
+        labels:
+          service: 'model-server'
+          model: 'model_3'
+
+  # Model Server 4
+  - job_name: 'model-server-4'
+    static_configs:
+      - targets: ['model-server-4:8004']
+        labels:
+          service: 'model-server'
+          model: 'model_4'
